@@ -13,26 +13,31 @@ def getClinicalDataCollections():
     else:
         if 'message' in r.json():
             print(r.json()['message'])
+            return -1
 
 
 def getClinicalDataCollection(id):
     global token
     r = requests.get(url='http://localhost:8180/dcbia/clinical/collection/' + str(id),
                      headers={'Authorization': 'Bearer ' + token})
-    if "error" in r.json():
-        sys.exit("Collection " + str(id) + " " + r.json()['error'])
-    else:
+    if "error" not in r.json():
         return r
+    else:
+        if 'message' in r.json():
+            print(r.json()['message'])
+            return -1
 
 
 def createClinicalDataCollection(data):
     global token
     r = requests.post(url='http://localhost:8180/dcbia/clinical/collection', data=data,
                                  headers={'Authorization': 'Bearer ' + token})
-    if "error" in r.json():
-        sys.exit(r.json()['message'])
-    else:
+    if "error" not in r.json():
         return r
+    else:
+        if 'message' in r.json():
+            print(r.json()['message'])
+            return -1
 
 
 def updateClinicalDataCollection(data):
@@ -43,7 +48,8 @@ def updateClinicalDataCollection(data):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def deleteClinicalDataCollection(id):
@@ -54,7 +60,8 @@ def deleteClinicalDataCollection(id):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def getAllClinicalData():
@@ -65,7 +72,8 @@ def getAllClinicalData():
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def getClinicalData(id):
@@ -76,7 +84,8 @@ def getClinicalData(id):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def createClinicalData(data):
@@ -87,7 +96,8 @@ def createClinicalData(data):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def updateClinicalData(data):
@@ -98,7 +108,8 @@ def updateClinicalData(data):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def deleteClinicalData(id):
@@ -109,7 +120,8 @@ def deleteClinicalData(id):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def getMorphologicalDataCollections():
@@ -120,7 +132,8 @@ def getMorphologicalDataCollections():
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def getMorphologicalDataCollection(id):
@@ -131,7 +144,8 @@ def getMorphologicalDataCollection(id):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def createMorphologicalDataCollection(data):
@@ -142,7 +156,8 @@ def createMorphologicalDataCollection(data):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def updateMorphologicalDataCollection(data):
@@ -153,7 +168,8 @@ def updateMorphologicalDataCollection(data):
         return r
     else:
         if 'message' in r.json():
-            print r.json()['message']
+            print(r.json()['message'])
+            return -1
 
 
 def deleteMorphologicalDataCollection(id):
@@ -164,7 +180,8 @@ def deleteMorphologicalDataCollection(id):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def getAllMorphologicalData():
@@ -175,7 +192,8 @@ def getAllMorphologicalData():
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def getMorphologicalData(id):
@@ -186,7 +204,8 @@ def getMorphologicalData(id):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def createMorphologicalData(data):
@@ -197,7 +216,8 @@ def createMorphologicalData(data):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def addAttachement(id, filename, data):
@@ -208,19 +228,20 @@ def addAttachement(id, filename, data):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def getAttachement(id, filename, responseType):
     global token
     r = requests.get(url='http://localhost:8180/dcbia/' + str(id) + '/' + str(filename),
                         headers={'Authorization': 'Bearer ' + token})
-    return r
     if "error" not in r.json():
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def updateMorphologicalData(data):
@@ -231,7 +252,8 @@ def updateMorphologicalData(data):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def deleteMorphologicalData(id):
@@ -242,7 +264,8 @@ def deleteMorphologicalData(id):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def getMorphologicalDataByPatientId(id):
@@ -253,7 +276,8 @@ def getMorphologicalDataByPatientId(id):
         return r
     else:
         if 'message' in r.json():
-            sys.exit(r.json()['message'])
+            print(r.json()['message'])
+            return -1
 
 
 def connect(email, password):
@@ -267,10 +291,15 @@ def connect(email, password):
         token = response.json()['token']
         return token
     except KeyError:
-        print ("Wrong email or password !")
+        "Wrong email or password !"
         return -1
 
 
 def disconnect():
     global token
     token = ''
+
+def getUserScope():
+    r = requests.get(url='http://localhost:8180/auth/user',
+                        headers={'Authorization': 'Bearer ' + token})
+    return len(r.json()["scope"])

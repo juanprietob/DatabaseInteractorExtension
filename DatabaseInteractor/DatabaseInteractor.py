@@ -81,7 +81,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         # Error Login Label
         self.errorLoginText = qt.QLabel()
-        self.errorLoginText.text = "Wrong email or password !"
         self.errorLoginText.setStyleSheet("color: rgb(255, 0, 0);")
         self.connectionGroupBoxLayout.addWidget(self.errorLoginText)
         self.errorLoginText.hide()
@@ -247,7 +246,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def onConnectionButton(self):
         # Try to connect to server
         token = myLib.connect(self.emailInput.text, self.passwordInput.text)
-        if token != -1:
+        if token != -1 and myLib.getUserScope() >= 2:
             # Write the token in a temporary file
             file = open(self.tokenFilePath, 'w+')
             file.write(token)
@@ -259,7 +258,11 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorsWithCollections()
             self.downloadCollapsibleButton.show()
             self.uploadCollapsibleButton.show()
+        elif token == -1:
+            self.errorLoginText.text = "Wrong email or password !"
+            self.errorLoginText.show()
         else:
+            self.errorLoginText.text = "Insufficient scope !"
             self.errorLoginText.show()
 
     def onDisconnectionButton(self):
