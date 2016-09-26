@@ -1,4 +1,4 @@
-import os, sys, tempfile
+import os, sys
 import unittest
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
@@ -50,13 +50,15 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.connected = False
         self.collections = dict()
         self.morphologicalData = dict()
-        self.tokenFilePath = tempfile.gettempdir() + 'user.slicer_token'
+        self.tokenFilePath = slicer.app.temporaryPath + '/user.slicer_token'
 
         # ---------------------------------------------------------------- #
         # ---------------- Definition of the UI interface ---------------- #
         # ---------------------------------------------------------------- #
 
+        # --------------------------------------------------- #
         # --- Definition of connection collapsible button --- #
+        # --------------------------------------------------- #
         # Collapsible button
         self.connectionCollapsibleButton = ctk.ctkCollapsibleButton()
         self.connectionCollapsibleButton.text = "Authentication"
@@ -97,7 +99,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.connectionVBoxLayout.addWidget(self.disconnectionButton)
         self.disconnectionButton.hide()
 
+        # ------------------------------------------------- #
         # --- Definition of download collapsible button --- #
+        # ------------------------------------------------- #
         # Collapsible button
         self.downloadCollapsibleButton = ctk.ctkCollapsibleButton()
         self.downloadCollapsibleButton.text = "Download data"
@@ -115,13 +119,20 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadPatientSelector.addItem("None")
         self.downloadFormLayout.insertRow(1, "Choose a patient: ", self.downloadPatientSelector)
 
+        # Directory Button
+        self.downloadFilepathSelector = ctk.ctkDirectoryButton()
+        self.downloadFilepathSelector.toolTip = "Choose a path to save the model."
+        self.downloadFormLayout.addRow(qt.QLabel("Choose a destination: "), self.downloadFilepathSelector)
+
         # Download Button
         self.downloadButton = qt.QPushButton("Download")
         self.downloadButton.toolTip = "Download patient data."
         self.downloadFormLayout.addRow(self.downloadButton)
         self.downloadButton.enabled = False
 
+        # ----------------------------------------------- #
         # --- Definition of upload collapsible button --- #
+        # ----------------------------------------------- #
         # Collapsible button
         self.uploadCollapsibleButton = ctk.ctkCollapsibleButton()
         self.uploadCollapsibleButton.text = "Upload data"
@@ -130,12 +141,12 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadCollapsibleButton.hide()
 
         # Volume selector
-        self.volumeSelector = slicer.qMRMLNodeComboBox()
-        self.volumeSelector.nodeTypes = (("vtkMRMLScalarVolumeNode"), "")
-        self.volumeSelector.addEnabled = False
-        self.volumeSelector.removeEnabled = False
-        self.volumeSelector.setMRMLScene(slicer.mrmlScene)
-        self.uploadFormLayout.addRow("Choose a volume: ", self.volumeSelector)
+        self.modelSelector = slicer.qMRMLNodeComboBox()
+        self.modelSelector.nodeTypes = (("vtkMRMLModelNode"), "")
+        self.modelSelector.addEnabled = False
+        self.modelSelector.removeEnabled = False
+        self.modelSelector.setMRMLScene(slicer.mrmlScene)
+        self.uploadFormLayout.addRow("Choose a model: ", self.modelSelector)
 
         # Collection Selector
         self.uploadCollectionSelector = qt.QComboBox()
@@ -187,6 +198,11 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.createPatientButton.enabled = False
         self.patientCreatorGroupBoxLayout.addWidget(self.createPatientButton)
 
+        # Attachment name input
+        self.attachmentNameInput = qt.QLineEdit()
+        self.attachmentNameInput.text = ''
+        self.uploadFormLayout.addRow("Attachment name: ", self.attachmentNameInput)
+
         # Upload Button
         self.uploadButton = qt.QPushButton("Upload")
         self.uploadButton.toolTip = "Upload patient data."
@@ -207,6 +223,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.emailInput.textChanged.connect(self.onInputChanged)
         self.passwordInput.textChanged.connect(self.onInputChanged)
+        self.attachmentNameInput.textChanged.connect(self.onAttachmentNameChanged)
         self.newCollectionNameInput.textChanged.connect(self.onNewCollectionNameInputChanged)
         self.newPatientIdInput.textChanged.connect(self.onNewPatientIdInputChanged)
         self.downloadCollectionSelector.connect('currentIndexChanged(const QString&)',
@@ -219,9 +236,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadPatientSelector.connect('currentIndexChanged(const QString&)',
                                              lambda text, type = "upload":
                                              self.onUploadPatientChosen(text,type))
-
-
-
 
         # --- Try to connect when launching the module --- #
         file = open(self.tokenFilePath,'r')
@@ -243,6 +257,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def cleanup(self):
         pass
 
+    # Function used to connect user to the database and store token in a file
     def onConnectionButton(self):
         # Try to connect to server
         token = myLib.connect(self.emailInput.text, self.passwordInput.text)
@@ -265,6 +280,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.errorLoginText.text = "Insufficient scope !"
             self.errorLoginText.show()
 
+    # Function used to disconnect user to the database
     def onDisconnectionButton(self):
         myLib.disconnect()
         self.connected = False
@@ -279,6 +295,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         with open(self.tokenFilePath, "w"):
             pass
 
+    # Function used to create a new collection if everything is ok
     def onCreateCollectionButton(self):
         newName = self.newCollectionNameInput.text
         # Create payload for posting new collection
@@ -295,6 +312,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # Hide create groupBox
         self.collectionCreatorGroupBox.hide()
 
+    # Function used to create a new patientId if everything is ok
     def onCreatePatientButton(self):
         newPatientId = self.newPatientIdInput.text
         data = {"patientId": newPatientId, "type": "morphologicalData"}
@@ -315,21 +333,62 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # Hide create groupBox
         self.patientCreatorGroupBox.hide()
 
+    # Function used to download data with information provided
     def onDownloadButton(self):
-        print "This is something to do."
+        for items in self.morphologicalData:
+            if items["patientId"] == self.downloadPatientSelector.currentText:
+                documentId = items["_id"]
+                attachmentName = items["_attachments"].keys()[0]
+        data = myLib.getAttachment(documentId,attachmentName,None).text
 
+        # Write the attachment in a file
+        filePath = self.downloadFilepathSelector.directory + '/' + attachmentName
+        file = open(filePath,'w+')
+        file.write(data)
+        file.close()
+
+        # Load the file
+        slicer.util.loadModel(filePath)
+
+    # Function used to upload a data to the correct patient
     def onUploadButton(self):
-        print "This is something to do."
+        for items in self.morphologicalData:
+            if items["patientId"] == self.uploadPatientSelector.currentText:
+                documentId = items["_id"]
 
+        # Write the polydata in a temporary file
+        meshWriter = vtk.vtkPolyDataWriter()
+        meshWriter.SetInputData(self.modelSelector.currentNode().GetPolyData())
+        filepath = slicer.app.temporaryPath + '/' + self.attachmentNameInput.text + '.vtk'
+        meshWriter.SetFileName(filepath)
+        meshWriter.Write()
+
+        # Send the file to the database
+        data = open(filepath)
+        myLib.addAttachment(documentId,self.attachmentNameInput.text + '.vtk',data)
+
+    # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
         self.connectionButton.enabled = (len(self.emailInput.text) != 0 and len(self.passwordInput.text) != 0)
 
+    # Function used to enable the upload button if everything is ok
+    def onAttachmentNameChanged(self):
+        collectionName = self.uploadCollectionSelector.currentText
+        text = self.uploadPatientSelector.currentText
+        temp = collectionName != "None" and collectionName != "Create"
+        temp = temp and text != "None" and text != "None" and len(self.attachmentNameInput.text) != 0
+        self.uploadButton.enabled = temp and self.modelSelector.currentNode() != None
+
+    # Function used to enable the upload button if the collection creation is ok
     def onNewCollectionNameInputChanged(self):
         self.createCollectionButton.enabled = len(self.newCollectionNameInput.text) != 0
+
+    # Function used to enable the upload button if the patientId creation is ok
     def onNewPatientIdInputChanged(self):
         collectionName = self.uploadCollectionSelector.currentText
         self.createPatientButton.enabled = len(self.newPatientIdInput.text) != 0 and collectionName != "Create" and collectionName != "None"
 
+    # Function used to fill the comboBoxes with morphologicalCollections
     def fillSelectorsWithCollections(self):
         self.collections = myLib.getMorphologicalDataCollections().json()
         self.downloadCollectionSelector.clear()
@@ -345,6 +404,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadCollectionSelector.insertSeparator(self.uploadCollectionSelector.count)
         self.uploadCollectionSelector.addItem("Create")
 
+    # Function used to fill the comboBoxes with patientId corresponding to the collection selected
     def fillSelectorsWithPatients(self, text, type):
         if text == "Create":
             self.collectionCreatorGroupBox.show()
@@ -373,17 +433,21 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     self.uploadPatientSelector.insertSeparator(self.uploadPatientSelector.count)
                     self.uploadPatientSelector.addItem("Create")
 
+    # Function used to enable the download button when everything is ok
     def onDownloadPatientChosen(self):
         collectionName = self.downloadCollectionSelector.currentText
         patientId = self.downloadPatientSelector.currentText
         if collectionName != "None" and patientId != "None":
             self.downloadButton.enabled = True
 
-
+    # Function used to enable upload button or show the groupBox to create a new patient
     def onUploadPatientChosen(self,text,type):
+        # Logic test to enable upload button if everything is ok
         collectionName = self.uploadCollectionSelector.currentText
-        if collectionName != "None" and collectionName != "Create" and text != "None" and text != "None":
-            self.uploadButton.enabled = True
+        if collectionName != "None" and collectionName != "Create":
+            if text != "None" and text != "None":
+                if len(self.attachmentNameInput.text) !=0 and self.modelSelector.currentNode() != None:
+                    self.uploadButton.enabled = True
         if text == "Create":
             self.patientCreatorGroupBox.show()
         else:

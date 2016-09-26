@@ -220,7 +220,7 @@ def createMorphologicalData(data):
             return -1
 
 
-def addAttachement(id, filename, data):
+def addAttachment(id, filename, data):
     global token
     r = requests.put(url='http://localhost:8180/dcbia/' + str(id) + '/' + str(filename), data=data,
                         headers={'Authorization': 'Bearer ' + token})
@@ -232,16 +232,11 @@ def addAttachement(id, filename, data):
             return -1
 
 
-def getAttachement(id, filename, responseType):
+def getAttachment(id, filename, responseType):
     global token
     r = requests.get(url='http://localhost:8180/dcbia/' + str(id) + '/' + str(filename),
                         headers={'Authorization': 'Bearer ' + token})
-    if "error" not in r.json():
-        return r
-    else:
-        if 'message' in r.json():
-            print(r.json()['message'])
-            return -1
+    return r
 
 
 def updateMorphologicalData(data):
