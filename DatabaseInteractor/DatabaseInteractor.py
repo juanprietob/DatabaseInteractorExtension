@@ -130,10 +130,21 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.queryTypeGroupBoxLayout.addWidget(self.downloadRadioButtonPatientDate)
         self.downloadFormLayout.addRow(self.queryTypeGroupBox)
 
+        # Directory Button
+        self.downloadFilepathSelector = ctk.ctkDirectoryButton()
+        self.downloadFilepathSelector.toolTip = "Choose a path to save the model."
+        self.downloadFormLayout.addRow(qt.QLabel("Choose a destination: "), self.downloadFilepathSelector)
+
         # Collection Selector
         self.downloadCollectionSelector = qt.QComboBox()
         self.downloadCollectionSelector.addItem("None")
         self.downloadFormLayout.addRow("Choose a collection: ", self.downloadCollectionSelector)
+
+        # Download entire collection Button
+        self.downloadCollectionButton = qt.QPushButton("Download the entire collection")
+        self.downloadCollectionButton.toolTip = "Download the whole collection in a folder."
+        self.downloadFormLayout.addWidget(self.downloadCollectionButton)
+        self.downloadCollectionButton.enabled = False
 
         # Patient Selector
         self.downloadPatientSelector = qt.QComboBox()
@@ -170,11 +181,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadAttachmentSelector.addItem("None")
         self.downloadFormLayout.addRow("Choose an attachment: ", self.downloadAttachmentSelector)
 
-        # Directory Button
-        self.downloadFilepathSelector = ctk.ctkDirectoryButton()
-        self.downloadFilepathSelector.toolTip = "Choose a path to save the model."
-        self.downloadFormLayout.addRow(qt.QLabel("Choose a destination: "), self.downloadFilepathSelector)
-
         # Error download Label
         self.downloadErrorText = qt.QLabel("No file found for this date !")
         self.downloadErrorText.setStyleSheet("color: rgb(255, 0, 0);")
@@ -182,7 +188,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadErrorText.hide()
 
         # Download Button
-        self.downloadButton = qt.QPushButton("Download")
+        self.downloadButton = qt.QPushButton("Download selected attachment")
         self.downloadButton.toolTip = "Download patient data."
         self.downloadFormLayout.addRow(self.downloadButton)
         self.downloadButton.enabled = False
@@ -279,6 +285,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
         self.downloadRadioButtonPatientDate.toggled.connect(self.onRadioButtontoggled)
         self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
+        self.downloadCollectionButton.connect('clicked(bool)',self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.emailInput.textChanged.connect(self.onInputChanged)
         self.passwordInput.textChanged.connect(self.onInputChanged)
@@ -406,7 +413,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to download data with information provided
     def onDownloadButton(self):
-        print "TODO"
         for items in self.morphologicalData:
             if items["_attachments"].keys()[0] == self.downloadAttachmentSelector.currentText:
                 documentId = items["_id"]
@@ -419,6 +425,28 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         # Load the file
         slicer.util.loadModel(filePath)
+
+    # Function used to download an entire collection and organise it with folders
+    def onDownloadCollectionButton(self):
+        collectionPath = self.downloadFilepathSelector.directory + '/' + self.downloadCollectionSelector.currentText
+        # Check if folder already exists
+        if not os.path.exists(collectionPath):
+            os.makedirs(collectionPath)
+        index = 0
+        # Create a folder for each patient
+        while index < self.downloadPatientSelector.count:
+            os.makedirs(collectionPath + "/" + self.downloadPatientSelector.itemText(index))
+            index += 1
+        # Fill the folders with attachments
+        for items in self.morphologicalData:
+            documentId = items["_id"]
+            attachmentName = items["_attachments"].keys()[0]
+            patientId = items["patientId"]
+            data = myLib.getAttachment(documentId, attachmentName, None).text
+            file = open(collectionPath + '/' + patientId + '/' + attachmentName,'w+')
+            file.write(data)
+            file.close()
+
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
@@ -467,7 +495,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         for items in self.collections:
             self.downloadCollectionSelector.addItem(items["name"])
             self.uploadCollectionSelector.addItem(items["name"])
-
         if self.downloadCollectionSelector.count == 0:
             self.downloadCollectionSelector.addItem("None")
         if self.uploadCollectionSelector.count == 0:
@@ -481,8 +508,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.collectionCreatorGroupBox.show()
         else:
             self.collectionCreatorGroupBox.hide()
-            self.downloadButton.enabled = text != "None"
+            self.downloadButton.enabled = text
             if text != "None":
+                self.downloadCollectionButton.enabled = True
                 # Get the patientIds in the selected collection
                 for items in self.collections:
                     if items["name"] == text:
@@ -506,6 +534,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     self.uploadPatientSelector.insertSeparator(self.uploadPatientSelector.count)
                     self.uploadPatientSelector.addItem("Create")
 
+    # Function used to fill a comboBox with attachments retrieved by queries
     def fillSelectorWithAttachments(self):
         self.downloadAttachmentSelector.clear()
         self.downloadErrorText.hide()
@@ -518,6 +547,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     self.downloadAttachmentSelector.addItem(attachmentName)
         else:
             for items in self.morphologicalData:
+                # Check if the date is the same
                 if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(self.downloadDate.selectedDate):
                     attachmentName = items["_attachments"].keys()[0]
                     self.downloadAttachmentSelector.addItem(attachmentName)
