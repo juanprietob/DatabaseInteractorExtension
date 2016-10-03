@@ -169,6 +169,12 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadFilepathSelector.toolTip = "Choose a path to save the model."
         self.downloadFormLayout.addRow(qt.QLabel("Choose a destination: "), self.downloadFilepathSelector)
 
+        # Error download Label
+        self.downloadErrorText = qt.QLabel("No file found for this date !")
+        self.downloadErrorText.setStyleSheet("color: rgb(255, 0, 0);")
+        self.downloadFormLayout.addWidget(self.downloadErrorText)
+        self.downloadErrorText.hide()
+
         # Download Button
         self.downloadButton = qt.QPushButton("Download")
         self.downloadButton.toolTip = "Download patient data."
@@ -382,7 +388,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
 
     def onRadioButtontoggled(self):
-        if (self.downloadRadioButtonPatientOnly.isChecked()):
+        self.downloadErrorText.hide()
+        if self.downloadRadioButtonPatientOnly.isChecked():
             self.downloadDateLabel.hide()
             self.downloadDate.hide()
         else:
@@ -391,13 +398,13 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to download data with information provided
     def onDownloadButton(self):
+        self.downloadErrorText.hide()
         if self.downloadRadioButtonPatientOnly.isChecked():
             for items in self.morphologicalData:
                 if items["patientId"] == self.downloadPatientSelector.currentText:
                     documentId = items["_id"]
                     attachmentName = items["_attachments"].keys()[0]
             data = myLib.getAttachment(documentId, attachmentName, None).text
-
             # Write the attachment in a file
             filePath = self.downloadFilepathSelector.directory + '/' + attachmentName
             file = open(filePath, 'w+')
@@ -407,7 +414,23 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             # Load the file
             slicer.util.loadModel(filePath)
         else:
-            print "This is something to do"
+            documentId = ""
+            for items in self.morphologicalData:
+                if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(self.downloadDate.selectedDate):
+                    documentId = items["_id"]
+                    attachmentName = items["_attachments"].keys()[0]
+            if documentId != "":
+                data = myLib.getAttachment(documentId, attachmentName, None).text
+                # Write the attachment in a file
+                filePath = self.downloadFilepathSelector.directory + '/' + attachmentName
+                file = open(filePath, 'w+')
+                file.write(data)
+                file.close()
+
+                # Load the file
+                slicer.util.loadModel(filePath)
+            else:
+                self.downloadErrorText.show()
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
