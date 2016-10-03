@@ -433,17 +433,34 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         if not os.path.exists(collectionPath):
             os.makedirs(collectionPath)
         index = 0
+        # Write collection document
+        for items in myLib.getMorphologicalDataCollections().json():
+            if items["name"] == self.downloadCollectionSelector.currentText:
+                revision = items["_rev"]
+                document = myLib.getMorphologicalDataCollection(items["_id"]).json()
+        file = open(collectionPath + '/' + revision + ".json",'w+')
+        json.dump(document,file)
         # Create a folder for each patient
         while index < self.downloadPatientSelector.count:
-            os.makedirs(collectionPath + "/" + self.downloadPatientSelector.itemText(index))
+            if self.downloadPatientSelector.itemText(index) != "None":
+                if not os.path.exists(collectionPath + "/" + self.downloadPatientSelector.itemText(index)):
+                    os.makedirs(collectionPath + "/" + self.downloadPatientSelector.itemText(index))
             index += 1
         # Fill the folders with attachments
         for items in self.morphologicalData:
             documentId = items["_id"]
             attachmentName = items["_attachments"].keys()[0]
             patientId = items["patientId"]
+            date = items["date"]
+            if not os.path.exists(collectionPath + "/" + patientId + "/" + date[:10]):
+                os.makedirs(collectionPath + "/" + patientId + "/" + date[:10])
             data = myLib.getAttachment(documentId, attachmentName, None).text
-            file = open(collectionPath + '/' + patientId + '/' + attachmentName,'w+')
+            # Save the document
+            file = open(collectionPath + '/' + patientId + '/' + date[:10] + '/' + items["_rev"] + ".json",'w+')
+            json.dump(items, file)
+
+            # Save the attachment
+            file = open(collectionPath + '/' + patientId + '/' + date[:10] + '/' + attachmentName,'w+')
             file.write(data)
             file.close()
 
