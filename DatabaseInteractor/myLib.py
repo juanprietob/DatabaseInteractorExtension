@@ -3,10 +3,10 @@ import json
 import sys
 
 token = ""
-server = 'http://localhost:8180/'
+server = ""
 
 def getClinicalDataCollections():
-    global token
+    global token, server,server
     r = requests.get(url = server + 'dcbia/clinical/collections',
                      headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -18,7 +18,7 @@ def getClinicalDataCollections():
 
 
 def getClinicalDataCollection(id):
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/clinical/collection/' + str(id),
                      headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -30,7 +30,7 @@ def getClinicalDataCollection(id):
 
 
 def createClinicalDataCollection(data):
-    global token
+    global token, server
     r = requests.post(url = server + 'dcbia/clinical/collection', data=data,
                                  headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -42,7 +42,7 @@ def createClinicalDataCollection(data):
 
 
 def updateClinicalDataCollection(data):
-    global token
+    global token, server
     r = requests.put(url = server + 'dcbia/clinical/collection', data=data,
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -54,7 +54,7 @@ def updateClinicalDataCollection(data):
 
 
 def deleteClinicalDataCollection(id):
-    global token
+    global token, server
     r = requests.delete(url = server + 'dcbia/clinical/collection/' + str(id),
                            headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -66,7 +66,7 @@ def deleteClinicalDataCollection(id):
 
 
 def getAllClinicalData():
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/clinical/collection/data',
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -78,7 +78,7 @@ def getAllClinicalData():
 
 
 def getClinicalData(id):
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/clinical/collection/data/' + str(id),
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -90,7 +90,7 @@ def getClinicalData(id):
 
 
 def createClinicalData(data):
-    global token
+    global token, server
     r = requests.post(url = server + 'dcbia/clinical/data', data=data,
                          headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -102,7 +102,7 @@ def createClinicalData(data):
 
 
 def updateClinicalData(data):
-    global token
+    global token, server
     r = requests.put(url = server + 'dcbia/clinical/data', data=data,
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -114,7 +114,7 @@ def updateClinicalData(data):
 
 
 def deleteClinicalData(id):
-    global token
+    global token, server
     r = requests.delete(url = server + 'dcbia/clinical/data/' + str(id),
                            headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -126,7 +126,7 @@ def deleteClinicalData(id):
 
 
 def getMorphologicalDataCollections():
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/morphological/collections',
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -138,7 +138,7 @@ def getMorphologicalDataCollections():
 
 
 def getMorphologicalDataCollection(id):
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/morphological/collection/' + str(id),
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -150,7 +150,7 @@ def getMorphologicalDataCollection(id):
 
 
 def createMorphologicalDataCollection(data):
-    global token
+    global token, server
     r = requests.post(url = server + 'dcbia/morphological/collection', data=data,
                          headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -162,7 +162,7 @@ def createMorphologicalDataCollection(data):
 
 
 def updateMorphologicalDataCollection(data):
-    global token
+    global token, server
     r = requests.put(url = server + 'dcbia/morphological/collection', data=data,
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -174,7 +174,7 @@ def updateMorphologicalDataCollection(data):
 
 
 def deleteMorphologicalDataCollection(id):
-    global token
+    global token, server
     r = requests.delete(url = server + 'dcbia/morphological/collection/' + str(id),
                            headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -186,7 +186,7 @@ def deleteMorphologicalDataCollection(id):
 
 
 def getAllMorphologicalData():
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/morphological/collection/data',
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -198,7 +198,7 @@ def getAllMorphologicalData():
 
 
 def getMorphologicalData(id):
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/morphological/collection/data/' + str(id),
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -210,7 +210,7 @@ def getMorphologicalData(id):
 
 
 def createMorphologicalData(data):
-    global token
+    global token, server
     r = requests.post(url = server + 'dcbia/morphological/data', data=data,
                          headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -222,7 +222,7 @@ def createMorphologicalData(data):
 
 
 def addAttachment(id, filename, data):
-    global token
+    global token, server
     r = requests.put(url = server + 'dcbia/' + str(id) + '/' + str(filename), data=data,
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -234,14 +234,14 @@ def addAttachment(id, filename, data):
 
 
 def getAttachment(id, filename, responseType):
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/' + str(id) + '/' + str(filename),
                         headers={'Authorization': 'Bearer ' + token})
     return r
 
 
 def updateMorphologicalData(data):
-    global token
+    global token, server
     r = requests.put(url = server + 'dcbia/morphological/data', data=data,
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -253,7 +253,7 @@ def updateMorphologicalData(data):
 
 
 def deleteMorphologicalData(id):
-    global token
+    global token, server
     r = requests.delete(url = server + 'dcbia/morphological/data/' + str(id),
                            headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -265,7 +265,7 @@ def deleteMorphologicalData(id):
 
 
 def getMorphologicalDataByPatientId(id):
-    global token
+    global token, server
     r = requests.get(url = server + 'dcbia/morphological/data/patientId/' + str(id),
                         headers={'Authorization': 'Bearer ' + token})
     if "error" not in r.json():
@@ -277,7 +277,7 @@ def getMorphologicalDataByPatientId(id):
 
 
 def connect(email, password):
-    global token
+    global token, server
     payload = {'email': email, 'password': password}
 
     # Check if the email/password are ok
@@ -285,17 +285,34 @@ def connect(email, password):
         response = requests.post(url = server + 'auth/login', data=json.dumps(payload),
                                  headers={'alg': 'HS256', 'typ': 'JWT'})
         token = response.json()['token']
-        return token
+        return token,""
     except KeyError:
-        "Wrong email or password !"
-        return -1
+        return -1,"Wrong email or password !"
+    except requests.exceptions.MissingSchema as e:
+        return -1,"Invalid server URL !"
+
 
 
 def disconnect():
-    global token
+    global token, server
     token = ''
+    server = ''
 
 def getUserScope():
     r = requests.get(url = server + 'auth/user',
                         headers={'Authorization': 'Bearer ' + token})
     return len(r.json()["scope"])
+
+def setServer(serverParam,serverFilePath):
+    global server
+    server = serverParam
+    file = open(serverFilePath, 'w+')
+    file.write(server)
+    file.close()
+
+def getServer(serverFilePath):
+    global server
+    file = open(serverFilePath, 'r')
+    first_line = file.readline()
+    server = first_line
+    file.close()

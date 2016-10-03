@@ -51,6 +51,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.collections = dict()
         self.morphologicalData = dict()
         self.tokenFilePath = slicer.app.temporaryPath + '/user.slicer_token'
+        self.serverFilePath = slicer.app.temporaryPath + '/user.slicer_server'
         self.moduleName = 'DatabaseInteractor'
         scriptedModulesPath = eval('slicer.modules.%s.path' % self.moduleName.lower())
         scriptedModulesPath = os.path.dirname(scriptedModulesPath)
@@ -68,10 +69,15 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.layout.addWidget(self.connectionCollapsibleButton)
         self.connectionVBoxLayout = qt.QVBoxLayout(self.connectionCollapsibleButton)
 
-        # - GroupBox containing Email and Password Inputs - #
+        # - GroupBox containing Server, Email and Password Inputs - #
         self.connectionGroupBox = qt.QGroupBox("Login")
         self.connectionGroupBoxLayout = qt.QFormLayout(self.connectionGroupBox)
         self.connectionVBoxLayout.addWidget(self.connectionGroupBox)
+
+        # Server input
+        self.serverInput = qt.QLineEdit()
+        self.serverInput.text = 'http://localhost:8180/'
+        self.connectionGroupBoxLayout.addRow("Server address: ", self.serverInput)
 
         # Email input
         self.emailInput = qt.QLineEdit()
@@ -281,6 +287,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # --- Try to connect when launching the module --- #
         file = open(self.tokenFilePath, 'r')
         first_line = file.readline()
+        myLib.getServer(self.serverFilePath)
         if first_line != "":
             # self.token = first_line
             myLib.token = first_line
@@ -299,8 +306,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to connect user to the database and store token in a file
     def onConnectionButton(self):
-        # Try to connect to server
-        token = myLib.connect(self.emailInput.text, self.passwordInput.text)
+        myLib.setServer(self.serverInput.text,self.serverFilePath)
+        token,error = myLib.connect(self.emailInput.text, self.passwordInput.text)
         if token != -1 and myLib.getUserScope() >= 2:
             # Write the token in a temporary file
             file = open(self.tokenFilePath, 'w+')
@@ -314,10 +321,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.downloadCollapsibleButton.show()
             self.uploadCollapsibleButton.show()
         elif token == -1:
-            self.errorLoginText.text = "Wrong email or password !"
+            self.errorLoginText.text = error
             self.errorLoginText.show()
         else:
-            self.errorLoginText.text = "Insufficient scope !"
+            self.errorLoginText.text = "Insufficient scope ! Email luciacev@umich.edu for access."
             self.errorLoginText.show()
 
     # Function used to disconnect user to the database
