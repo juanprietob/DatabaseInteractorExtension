@@ -51,6 +51,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.collections = dict()
         self.morphologicalData = dict()
         self.tokenFilePath = slicer.app.temporaryPath + '/user.slicer_token'
+        self.moduleName = 'DatabaseInteractor'
+        scriptedModulesPath = eval('slicer.modules.%s.path' % self.moduleName.lower())
+        scriptedModulesPath = os.path.dirname(scriptedModulesPath)
 
         # ---------------------------------------------------------------- #
         # ---------------- Definition of the UI interface ---------------- #
@@ -109,6 +112,18 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadFormLayout = qt.QFormLayout(self.downloadCollapsibleButton)
         self.downloadCollapsibleButton.hide()
 
+        # Query type selector groupBox
+        self.queryTypeGroupBox = qt.QGroupBox("Find data with :")
+        self.queryTypeGroupBoxLayout = qt.QHBoxLayout(self.queryTypeGroupBox)
+
+        # RadioButtons choices
+        self.downloadRadioButtonPatientOnly = qt.QRadioButton("PatientId only")
+        self.downloadRadioButtonPatientOnly.setChecked(True)
+        self.downloadRadioButtonPatientDate = qt.QRadioButton("PatientId and date")
+        self.queryTypeGroupBoxLayout.addWidget(self.downloadRadioButtonPatientOnly)
+        self.queryTypeGroupBoxLayout.addWidget(self.downloadRadioButtonPatientDate)
+        self.downloadFormLayout.addRow(self.queryTypeGroupBox)
+
         # Collection Selector
         self.downloadCollectionSelector = qt.QComboBox()
         self.downloadCollectionSelector.addItem("None")
@@ -117,7 +132,31 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # Patient Selector
         self.downloadPatientSelector = qt.QComboBox()
         self.downloadPatientSelector.addItem("None")
-        self.downloadFormLayout.insertRow(1, "Choose a patient: ", self.downloadPatientSelector)
+        self.downloadFormLayout.addRow("Choose a patient: ", self.downloadPatientSelector)
+
+        # Date Selector
+        self.downloadDate = qt.QCalendarWidget()
+        self.downloadDate.setStyleSheet(
+            "QCalendarWidget QWidget#qt_calendar_navigationbar{background-color:rgb(200,200,200);}"
+            "QCalendarWidget QWidget#qt_calendar_nextmonth{"
+            "qproperty-icon: url(" + scriptedModulesPath + "/Resources/Icons/ArrowRight.png);"
+            "qproperty-iconSize: 10px;width:20px;}"
+            "QCalendarWidget QWidget#qt_calendar_prevmonth{"
+            "qproperty-icon: url(" + scriptedModulesPath + "/Resources/Icons/ArrowLeft.png);"
+            "qproperty-iconSize: 10px;width:20px;}"
+            "QCalendarWidget QToolButton{height:25px;width:90px;color:black;icon-size:25px,25px;"
+            "background-color:rgb(200,200,200);}"
+            "QCalendarWidget QMenu{width:125px;background-color:rgb(200,200,200);}"
+            "QCalendarWidget QSpinBox{width:65px;background-color:rgb(200,200,200);"
+            "selection-background-color:rgb(200,200,200);selection-color:black;}"
+            "QCalendarWidget QWidget{alternate-background-color:rgb(225,225,225);}"
+            "QCalendarWidget QAbstractItemView:enabled{color:rgb(100,100,100);"
+            "selection-background-color:rgb(200,200,200);selection-color:white;}"
+            "QCalendarWidget QAbstractItemView:disabled {color: rgb(200, 200, 200);}")
+        self.downloadDateLabel = qt.QLabel("Choose a date: ")
+        self.downloadFormLayout.addRow(self.downloadDateLabel, self.downloadDate)
+        self.downloadDateLabel.hide()
+        self.downloadDate.hide()
 
         # Directory Button
         self.downloadFilepathSelector = ctk.ctkDirectoryButton()
@@ -219,6 +258,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.disconnectionButton.connect('clicked(bool)', self.onDisconnectionButton)
         self.createCollectionButton.connect('clicked(bool)', self.onCreateCollectionButton)
         self.createPatientButton.connect('clicked(bool)', self.onCreatePatientButton)
+        self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
+        self.downloadRadioButtonPatientDate.toggled.connect(self.onRadioButtontoggled)
         self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.emailInput.textChanged.connect(self.onInputChanged)
@@ -234,14 +275,14 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                                               self.fillSelectorsWithPatients(text, type))
         self.downloadPatientSelector.connect('currentIndexChanged(const QString&)', self.onDownloadPatientChosen)
         self.uploadPatientSelector.connect('currentIndexChanged(const QString&)',
-                                             lambda text, type = "upload":
-                                             self.onUploadPatientChosen(text,type))
+                                           lambda text, type="upload":
+                                           self.onUploadPatientChosen(text, type))
 
         # --- Try to connect when launching the module --- #
-        file = open(self.tokenFilePath,'r')
+        file = open(self.tokenFilePath, 'r')
         first_line = file.readline()
         if first_line != "":
-            #self.token = first_line
+            # self.token = first_line
             myLib.token = first_line
             self.connected = True
             self.connectionGroupBox.hide()
@@ -252,7 +293,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.uploadCollapsibleButton.show()
 
         file.close()
-
 
     def cleanup(self):
         pass
@@ -299,7 +339,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def onCreateCollectionButton(self):
         newName = self.newCollectionNameInput.text
         # Create payload for posting new collection
-        data={"name": newName,"type": "morphologicalDataCollection"}
+        data = {"name": newName, "type": "morphologicalDataCollection"}
         myLib.createMorphologicalDataCollection(data)
 
         # Prepare to display patientId in this collection
@@ -325,7 +365,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         myLib.updateMorphologicalDataCollection(json.dumps(collectionJson))
 
         # Refill the patient selectors
-        self.fillSelectorsWithPatients(collection,"upload")
+        self.fillSelectorsWithPatients(collection, "upload")
         self.fillSelectorsWithPatients(collection, "download")
         index = self.uploadPatientSelector.findText(newPatientId)
         self.uploadPatientSelector.setCurrentIndex(index)
@@ -333,22 +373,34 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # Hide create groupBox
         self.patientCreatorGroupBox.hide()
 
+
+    def onRadioButtontoggled(self):
+        if (self.downloadRadioButtonPatientOnly.isChecked()):
+            self.downloadDateLabel.hide()
+            self.downloadDate.hide()
+        else:
+            self.downloadDateLabel.show()
+            self.downloadDate.show()
+
     # Function used to download data with information provided
     def onDownloadButton(self):
-        for items in self.morphologicalData:
-            if items["patientId"] == self.downloadPatientSelector.currentText:
-                documentId = items["_id"]
-                attachmentName = items["_attachments"].keys()[0]
-        data = myLib.getAttachment(documentId,attachmentName,None).text
+        if self.downloadRadioButtonPatientOnly.isChecked():
+            for items in self.morphologicalData:
+                if items["patientId"] == self.downloadPatientSelector.currentText:
+                    documentId = items["_id"]
+                    attachmentName = items["_attachments"].keys()[0]
+            data = myLib.getAttachment(documentId, attachmentName, None).text
 
-        # Write the attachment in a file
-        filePath = self.downloadFilepathSelector.directory + '/' + attachmentName
-        file = open(filePath,'w+')
-        file.write(data)
-        file.close()
+            # Write the attachment in a file
+            filePath = self.downloadFilepathSelector.directory + '/' + attachmentName
+            file = open(filePath, 'w+')
+            file.write(data)
+            file.close()
 
-        # Load the file
-        slicer.util.loadModel(filePath)
+            # Load the file
+            slicer.util.loadModel(filePath)
+        else:
+            print "This is something to do"
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
@@ -365,7 +417,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         # Send the file to the database
         data = open(filepath)
-        myLib.addAttachment(documentId,self.attachmentNameInput.text + '.vtk',data)
+        myLib.addAttachment(documentId, self.attachmentNameInput.text + '.vtk', data)
 
     # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
@@ -386,7 +438,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     # Function used to enable the upload button if the patientId creation is ok
     def onNewPatientIdInputChanged(self):
         collectionName = self.uploadCollectionSelector.currentText
-        self.createPatientButton.enabled = len(self.newPatientIdInput.text) != 0 and collectionName != "Create" and collectionName != "None"
+        self.createPatientButton.enabled = len(
+            self.newPatientIdInput.text) != 0 and collectionName != "Create" and collectionName != "None"
 
     # Function used to fill the comboBoxes with morphologicalCollections
     def fillSelectorsWithCollections(self):
@@ -441,12 +494,12 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.downloadButton.enabled = True
 
     # Function used to enable upload button or show the groupBox to create a new patient
-    def onUploadPatientChosen(self,text,type):
+    def onUploadPatientChosen(self, text, type):
         # Logic test to enable upload button if everything is ok
         collectionName = self.uploadCollectionSelector.currentText
         if collectionName != "None" and collectionName != "Create":
             if text != "None" and text != "None":
-                if len(self.attachmentNameInput.text) !=0 and self.modelSelector.currentNode() != None:
+                if len(self.attachmentNameInput.text) != 0 and self.modelSelector.currentNode() != None:
                     self.uploadButton.enabled = True
         if text == "Create":
             self.patientCreatorGroupBox.show()
