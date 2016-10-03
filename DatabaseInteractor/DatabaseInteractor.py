@@ -139,6 +139,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadPatientSelector = qt.QComboBox()
         self.downloadPatientSelector.addItem("None")
         self.downloadFormLayout.addRow("Choose a patient: ", self.downloadPatientSelector)
+        self.downloadPatientSelector.setDuplicatesEnabled(True)
 
         # Date Selector
         self.downloadDate = qt.QCalendarWidget()
@@ -163,6 +164,11 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadFormLayout.addRow(self.downloadDateLabel, self.downloadDate)
         self.downloadDateLabel.hide()
         self.downloadDate.hide()
+
+        # Attachment selector
+        self.downloadAttachmentSelector = qt.QComboBox()
+        self.downloadAttachmentSelector.addItem("None")
+        self.downloadFormLayout.addRow("Choose an attachment: ", self.downloadAttachmentSelector)
 
         # Directory Button
         self.downloadFilepathSelector = ctk.ctkDirectoryButton()
@@ -289,6 +295,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadPatientSelector.connect('currentIndexChanged(const QString&)',
                                            lambda text, type="upload":
                                            self.onUploadPatientChosen(text, type))
+        self.downloadDate.connect('clicked(const QDate&)',self.fillSelectorWithAttachments)
 
         # --- Try to connect when launching the module --- #
         file = open(self.tokenFilePath, 'r')
@@ -389,6 +396,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     def onRadioButtontoggled(self):
         self.downloadErrorText.hide()
+        self.fillSelectorWithAttachments()
         if self.downloadRadioButtonPatientOnly.isChecked():
             self.downloadDateLabel.hide()
             self.downloadDate.hide()
@@ -398,39 +406,19 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to download data with information provided
     def onDownloadButton(self):
-        self.downloadErrorText.hide()
-        if self.downloadRadioButtonPatientOnly.isChecked():
-            for items in self.morphologicalData:
-                if items["patientId"] == self.downloadPatientSelector.currentText:
-                    documentId = items["_id"]
-                    attachmentName = items["_attachments"].keys()[0]
-            data = myLib.getAttachment(documentId, attachmentName, None).text
-            # Write the attachment in a file
-            filePath = self.downloadFilepathSelector.directory + '/' + attachmentName
-            file = open(filePath, 'w+')
-            file.write(data)
-            file.close()
+        print "TODO"
+        for items in self.morphologicalData:
+            if items["_attachments"].keys()[0] == self.downloadAttachmentSelector.currentText:
+                documentId = items["_id"]
+        data = myLib.getAttachment(documentId, self.downloadAttachmentSelector.currentText, None).text
+        # Write the attachment in a file
+        filePath = self.downloadFilepathSelector.directory + '/' + self.downloadAttachmentSelector.currentText
+        file = open(filePath, 'w+')
+        file.write(data)
+        file.close()
 
-            # Load the file
-            slicer.util.loadModel(filePath)
-        else:
-            documentId = ""
-            for items in self.morphologicalData:
-                if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(self.downloadDate.selectedDate):
-                    documentId = items["_id"]
-                    attachmentName = items["_attachments"].keys()[0]
-            if documentId != "":
-                data = myLib.getAttachment(documentId, attachmentName, None).text
-                # Write the attachment in a file
-                filePath = self.downloadFilepathSelector.directory + '/' + attachmentName
-                file = open(filePath, 'w+')
-                file.write(data)
-                file.close()
-
-                # Load the file
-                slicer.util.loadModel(filePath)
-            else:
-                self.downloadErrorText.show()
+        # Load the file
+        slicer.util.loadModel(filePath)
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
@@ -504,17 +492,39 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 if type == "download":
                     self.downloadPatientSelector.clear()
                     for items in self.morphologicalData:
-                        self.downloadPatientSelector.addItem(items["patientId"])
+                        if self.downloadPatientSelector.findText(items["patientId"]) ==-1:
+                            self.downloadPatientSelector.addItem(items["patientId"])
                     if self.downloadPatientSelector.count == 0:
                         self.downloadPatientSelector.addItem("None")
                 if type == "upload":
                     self.uploadPatientSelector.clear()
                     for items in self.morphologicalData:
-                        self.uploadPatientSelector.addItem(items["patientId"])
+                        if self.uploadPatientSelector.findText(items["patientId"]) ==-1:
+                            self.uploadPatientSelector.addItem(items["patientId"])
                     if self.uploadPatientSelector.count == 0:
                         self.uploadPatientSelector.addItem("None")
                     self.uploadPatientSelector.insertSeparator(self.uploadPatientSelector.count)
                     self.uploadPatientSelector.addItem("Create")
+
+    def fillSelectorWithAttachments(self):
+        self.downloadAttachmentSelector.clear()
+        self.downloadErrorText.hide()
+        self.downloadButton.enabled = True
+        attachmentName = ""
+        if self.downloadRadioButtonPatientOnly.isChecked():
+            for items in self.morphologicalData:
+                if items["patientId"] == self.downloadPatientSelector.currentText:
+                    attachmentName = items["_attachments"].keys()[0]
+                    self.downloadAttachmentSelector.addItem(attachmentName)
+        else:
+            for items in self.morphologicalData:
+                if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(self.downloadDate.selectedDate):
+                    attachmentName = items["_attachments"].keys()[0]
+                    self.downloadAttachmentSelector.addItem(attachmentName)
+            if attachmentName == "":
+                self.downloadAttachmentSelector.addItem("None")
+                self.downloadErrorText.show()
+                self.downloadButton.enabled = False
 
     # Function used to enable the download button when everything is ok
     def onDownloadPatientChosen(self):
@@ -522,6 +532,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         patientId = self.downloadPatientSelector.currentText
         if collectionName != "None" and patientId != "None":
             self.downloadButton.enabled = True
+            self.fillSelectorWithAttachments()
 
     # Function used to enable upload button or show the groupBox to create a new patient
     def onUploadPatientChosen(self, text, type):
