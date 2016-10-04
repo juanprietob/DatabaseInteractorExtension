@@ -12,10 +12,6 @@ import json
 #
 
 class DatabaseInteractor(ScriptedLoadableModule):
-    """Uses ScriptedLoadableModule base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
-
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = "Database Interactor"
@@ -36,10 +32,6 @@ class DatabaseInteractor(ScriptedLoadableModule):
 #
 
 class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
-    """Uses ScriptedLoadableModuleWidget base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
-
     def setup(self):
         ScriptedLoadableModuleWidget.setup(self)
 
@@ -141,7 +133,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadFormLayout.addRow("Choose a collection: ", self.downloadCollectionSelector)
 
         # Download entire collection Button
-        self.downloadCollectionButton = qt.QPushButton("Download the entire collection")
+        self.downloadCollectionButton = qt.QPushButton("Download entire collection")
         self.downloadCollectionButton.toolTip = "Download the whole collection in a folder."
         self.downloadFormLayout.addWidget(self.downloadCollectionButton)
         self.downloadCollectionButton.enabled = False
@@ -338,6 +330,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.connectionButton.hide()
             self.disconnectionButton.show()
             self.fillSelectorsWithCollections()
+            self.fillSelectorWithAttachments()
             self.downloadCollapsibleButton.show()
             self.uploadCollapsibleButton.show()
         elif token == -1:
@@ -609,73 +602,41 @@ class DatabaseInteractorLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
-    def hasImageData(self, volumeNode):
-        """This is an example logic method that
-    returns true if the passed in volume
-    node has valid image data
-    """
-        if not volumeNode:
-            logging.debug('hasImageData failed: no volume node')
-            return False
-        if volumeNode.GetImageData() is None:
-            logging.debug('hasImageData failed: no image data in volume node')
-            return False
-        return True
-
     def run(self, email, password):
         return myLib.connect(email, password)
 
 
 class DatabaseInteractorTest(ScriptedLoadableModuleTest):
-    """
-  This is the test case for your scripted module.
-  Uses ScriptedLoadableModuleTest base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
-
+    # Reset the scene
     def setUp(self):
-        """ Do whatever is needed to reset the state - typically a scene clear will be enough.
-    """
         slicer.mrmlScene.Clear(0)
+        myLib.disconnect()
 
+    # Run the tests
     def runTest(self):
-        """Run as few or as many tests as needed here.
-    """
         self.setUp()
-        self.test_DatabaseInteractor1()
 
-    def test_DatabaseInteractor1(self):
-        """ Ideally you should have several levels of tests.  At the lowest level
-    tests should exercise the functionality of the logic with different inputs
-    (both valid and invalid).  At higher levels your tests should emulate the
-    way the user would interact with your code and confirm that it still works
-    the way you intended.
-    One of the most important features of the tests is that it should alert other
-    developers when their changes will have an impact on the behavior of your
-    module.  For example, if a developer removes a feature that you depend on,
-    your test should break so they know that the feature is needed.
-    """
+        self.delayDisplay(' Starting tests ')
 
-        self.delayDisplay("Starting the test")
-        #
-        # first, get some data
-        #
-        import urllib
-        downloads = (
-            ('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd', slicer.util.loadVolume),
-        )
+        self.delayDisplay(' Test Connection Function ')
+        self.assertTrue(self.test_Connection())
 
-        for url, name, loader in downloads:
-            filePath = slicer.app.temporaryPath + '/' + name
-            if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
-                logging.info('Requesting download %s from %s...\n' % (name, url))
-                urllib.urlretrieve(url, filePath)
-            if loader:
-                logging.info('Loading %s...' % (name,))
-                loader(filePath)
-        self.delayDisplay('Finished with download and loading')
+        self.delayDisplay(' Tests Passed! ')
 
-        volumeNode = slicer.util.getNode(pattern="FA")
-        logic = DatabaseInteractorLogic()
-        self.assertIsNotNone(logic.hasImageData(volumeNode))
-        self.delayDisplay('Test passed!')
+
+    def test_Connection(self):
+        # ---------------------------------------------------------------- #
+        # ---------------------- Connection to server -------------------- #
+        # ---------------------------------------------------------------- #
+        server = 'http://localhost:8180/'
+        user = 'clement.mirabel@gmail.com'
+        password = 'Password12345'
+        self.delayDisplay('Attempting to connect to %s.' % (server))
+        myLib.setServer(server, slicer.app.temporaryPath + '/user.slicer_server')
+        token,error = myLib.connect(user,password)
+        if token == -1:
+            print("Connection Failed : " + error)
+            return False
+        print("Connection Passed !")
+        return True
+    
