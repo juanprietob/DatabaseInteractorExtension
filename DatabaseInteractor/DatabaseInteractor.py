@@ -297,21 +297,24 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadDate.connect('clicked(const QDate&)',self.fillSelectorWithAttachments)
 
         # --- Try to connect when launching the module --- #
-        file = open(self.tokenFilePath, 'r')
-        first_line = file.readline()
-        myLib.getServer(self.serverFilePath)
-        if first_line != "":
-            # self.token = first_line
-            myLib.token = first_line
-            self.connected = True
-            self.connectionGroupBox.hide()
-            self.connectionButton.hide()
-            self.disconnectionButton.show()
-            self.fillSelectorsWithCollections()
-            self.downloadCollapsibleButton.show()
-            self.uploadCollapsibleButton.show()
+        try:
+            file = open(self.tokenFilePath, 'r')
+            first_line = file.readline()
+            myLib.getServer(self.serverFilePath)
+            if first_line != "":
+                # self.token = first_line
+                myLib.token = first_line
+                self.connected = True
+                self.connectionGroupBox.hide()
+                self.connectionButton.hide()
+                self.disconnectionButton.show()
+                self.fillSelectorsWithCollections()
+                self.downloadCollapsibleButton.show()
+                self.uploadCollapsibleButton.show()
+            file.close()
+        except IOError:
+            pass
 
-        file.close()
 
     def cleanup(self):
         pass
@@ -618,19 +621,35 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
 
         self.delayDisplay(' Starting tests ')
 
-        self.delayDisplay(' Test Connection Function ')
-        self.assertTrue(self.test_Connection())
+        self.delayDisplay(' Test Login Function ')
+        self.assertTrue(self.test_Login())
+        self.delayDisplay(' Test createCollection Function ')
+        self.assertTrue(self.test_createCollection())
+        self.delayDisplay(' Test getCollection Function ')
+        self.assertTrue(self.test_getCollection())
+        self.delayDisplay(' Test createPatient Function ')
+        self.assertTrue(self.test_createPatient())
+        self.delayDisplay(' Test importData Function ')
+        self.assertTrue(self.test_importData())
+        self.delayDisplay(' Test uploadAttachment Function ')
+        self.assertTrue(self.test_uploadAttachment())
+        self.delayDisplay(' Test getAttachment Function ')
+        self.assertTrue(self.test_getAttachment())
+        self.delayDisplay(' Test deletePatient Function ')
+        self.assertTrue(self.test_deletePatient())
+        self.delayDisplay(' Test deleteCollection Function ')
+        self.assertTrue(self.test_deleteCollection())
 
         self.delayDisplay(' Tests Passed! ')
 
 
-    def test_Connection(self):
+    def test_Login(self):
         # ---------------------------------------------------------------- #
-        # ---------------------- Connection to server -------------------- #
+        # ------------------------ Login to server ----------------------- #
         # ---------------------------------------------------------------- #
         server = 'http://localhost:8180/'
         user = 'clement.mirabel@gmail.com'
-        password = 'Password12345'
+        password = 'Password1234'
         self.delayDisplay('Attempting to connect to %s.' % (server))
         myLib.setServer(server, slicer.app.temporaryPath + '/user.slicer_server')
         token,error = myLib.connect(user,password)
@@ -639,4 +658,117 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
             return False
         print("Connection Passed !")
         return True
-    
+
+    def test_createCollection(self):
+        # ---------------------------------------------------------------- #
+        # ------------------- Creating a test collection ----------------- #
+        # ---------------------------------------------------------------- #
+        data = {"items": "[]",
+                "type": "morphologicalDataCollection",
+                "name": "CollectionTest"}
+        rep = myLib.createMorphologicalDataCollection(data)
+        if rep == -1:
+            print("Collection creation Failed!")
+            return False
+        print("Collection creation Passed!")
+        return True
+
+    def test_getCollection(self):
+        # ---------------------------------------------------------------- #
+        # ------------------ Getting the test collection ----------------- #
+        # ---------------------------------------------------------------- #
+        rep = myLib.getMorphologicalDataCollections()
+        for items in rep.json():
+            if items["name"]=="CollectionTest":
+                self.collectionTestId = items["_id"]
+                print("Getting collection Passed!")
+                return True
+        print("Getting collection Failed!")
+        return False
+
+    def test_createPatient(self):
+        # ---------------------------------------------------------------- #
+        # ---------------------- Creating a patient ---------------------- #
+        # ---------------------------------------------------------------- #
+        data = {"type": "morphologicalData", "patientId": "PatientTest"}
+        rep = myLib.createMorphologicalData(data)
+        if rep == -1:
+            print("Patient creation Failed!")
+            return False
+        self.patientId = rep.json()["id"]
+        rep = myLib.getMorphologicalDataCollection(self.collectionTestId).json()
+        rep["items"].append({'_id': self.patientId})
+        upd = myLib.updateMorphologicalDataCollection(json.dumps(rep))
+        if upd == -1:
+            print("Patient creation Failed!")
+            return False
+        print("Patient creation Passed!")
+        return True
+
+
+
+    def test_uploadAttachment(self):
+        # ---------------------------------------------------------------- #
+        # -------------------- Uploading an attachment ------------------- #
+        # ---------------------------------------------------------------- #
+        self.moduleName = 'DatabaseInteractor'
+        filePath = slicer.app.temporaryPath + '/FA.nrrd'
+        file = open(filePath,'rb')
+        data = file.read()
+        rep = myLib.addAttachment(self.patientId,'attachmentTest.nrrd',data)
+        if rep == -1:
+            print("Attachment upload Failed!")
+            return False
+        print("Attachment upload Passed!")
+        return True
+
+    def test_getAttachment(self):
+        # ---------------------------------------------------------------- #
+        # --------------------- Getting an attachment -------------------- #
+        # ---------------------------------------------------------------- #
+        rep = myLib.getAttachment(self.patientId,'attachmentTest.nrrd', 'blob')
+        if rep == -1:
+            print("Getting attachment Failed!")
+            return False
+        filePath = slicer.app.temporaryPath + '/attachmentTest.nrrd'
+        with open(filePath, 'wb+') as fd:
+            for chunk in rep.iter_content(2048):
+                fd.write(chunk)
+        slicer.util.loadVolume(filePath)
+        print("Getting attachment Passed!")
+        return True
+
+    def test_deletePatient(self):
+        # ---------------------------------------------------------------- #
+        # --------------------- Delete the test patient ------------------ #
+        # ---------------------------------------------------------------- #
+        rep = myLib.deleteMorphologicalData(self.patientId)
+        if rep == -1:
+            print("Patient deletion Failed!")
+            return False
+        print("Patient deletion Passed!")
+        return True
+
+    def test_deleteCollection(self):
+        # ---------------------------------------------------------------- #
+        # ------------------- Delete the test collection ----------------- #
+        # ---------------------------------------------------------------- #
+        rep = myLib.deleteMorphologicalDataCollection(self.collectionTestId)
+        if rep == -1:
+            print("Collection deletion Failed!")
+            return False
+        print("Collection deletion Passed!")
+        return True
+
+    def test_importData(self):
+        import urllib
+        downloads = (
+            ('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd', slicer.util.loadVolume),
+        )
+
+        for url, name, loader in downloads:
+            filePath = slicer.app.temporaryPath + '/' + name
+            if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
+                logging.info('Requesting download %s from %s...\n' % (name, url))
+                urllib.urlretrieve(url, filePath)
+        return True
