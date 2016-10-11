@@ -203,68 +203,22 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadFormLayout = qt.QFormLayout(self.uploadCollapsibleButton)
         self.uploadCollapsibleButton.hide()
 
+        # Directory Button
+        self.uploadFilepathSelector = ctk.ctkDirectoryButton()
+        self.uploadFilepathSelector.toolTip = "Choose the path to the folder where you saved patient files."
+        self.uploadFormLayout.addRow(qt.QLabel("Choose collection folder: "), self.uploadFilepathSelector)
+
+        # ListView of the differences between local folder and online database
+        self.uploadListView = qt.QListWidget()
+        self.uploadFormLayout.addRow("Modified files: ", self.uploadListView)
+
         # Volume selector
-        self.modelSelector = slicer.qMRMLNodeComboBox()
-        self.modelSelector.nodeTypes = (("vtkMRMLModelNode"), "")
-        self.modelSelector.addEnabled = False
-        self.modelSelector.removeEnabled = False
-        self.modelSelector.setMRMLScene(slicer.mrmlScene)
-        self.uploadFormLayout.addRow("Choose a model: ", self.modelSelector)
-
-        # Collection Selector
-        self.uploadCollectionSelector = qt.QComboBox()
-        self.uploadCollectionSelector.addItem("None")
-        self.uploadCollectionSelector.insertSeparator(1)
-        self.uploadCollectionSelector.addItem("Create")
-        self.uploadFormLayout.addRow("Choose a collection: ", self.uploadCollectionSelector)
-
-        # Collection Creator
-        # Collection Creator GroupBox
-        self.collectionCreatorGroupBox = qt.QGroupBox("Create a collection")
-        self.collectionCreatorGroupBoxLayout = qt.QFormLayout(self.collectionCreatorGroupBox)
-        self.uploadFormLayout.addRow(self.collectionCreatorGroupBox)
-        self.collectionCreatorGroupBox.hide()
-
-        # Collection name input
-        self.newCollectionNameInput = qt.QLineEdit()
-        self.newCollectionNameInput.text = ''
-        self.newCollectionNameLabel = qt.QLabel("Collection name: ")
-        self.collectionCreatorGroupBoxLayout.addRow(self.newCollectionNameLabel, self.newCollectionNameInput)
-
-        # Collection Creator Button
-        self.createCollectionButton = qt.QPushButton("Create collection")
-        self.createCollectionButton.enabled = False
-        self.collectionCreatorGroupBoxLayout.addWidget(self.createCollectionButton)
-
-        # Patient Selector
-        self.uploadPatientSelector = qt.QComboBox()
-        self.uploadPatientSelector.addItem("None")
-        self.uploadPatientSelector.insertSeparator(1)
-        self.uploadPatientSelector.addItem("Create")
-        self.uploadFormLayout.addRow("Choose a patient: ", self.uploadPatientSelector)
-
-        # Patient Creator
-        # Patient Creator GroupBox
-        self.patientCreatorGroupBox = qt.QGroupBox("Create a patientId")
-        self.patientCreatorGroupBoxLayout = qt.QFormLayout(self.patientCreatorGroupBox)
-        self.uploadFormLayout.addRow(self.patientCreatorGroupBox)
-        self.patientCreatorGroupBox.hide()
-
-        # Patient name input
-        self.newPatientIdInput = qt.QLineEdit()
-        self.newPatientIdInput.text = ''
-        self.newPatientIdInputLabel = qt.QLabel("Patiend Id: ")
-        self.patientCreatorGroupBoxLayout.addRow(self.newPatientIdInputLabel, self.newPatientIdInput)
-
-        # Patient Creator Button
-        self.createPatientButton = qt.QPushButton("Create patient Id")
-        self.createPatientButton.enabled = False
-        self.patientCreatorGroupBoxLayout.addWidget(self.createPatientButton)
-
-        # Attachment name input
-        self.attachmentNameInput = qt.QLineEdit()
-        self.attachmentNameInput.text = ''
-        self.uploadFormLayout.addRow("Attachment name: ", self.attachmentNameInput)
+        # self.modelSelector = slicer.qMRMLNodeComboBox()
+        # self.modelSelector.nodeTypes = (("vtkMRMLModelNode"), "")
+        # self.modelSelector.addEnabled = False
+        # self.modelSelector.removeEnabled = False
+        # self.modelSelector.setMRMLScene(slicer.mrmlScene)
+        # self.uploadFormLayout.addRow("Choose a model: ", self.modelSelector)
 
         # Upload Button
         self.uploadButton = qt.QPushButton("Upload")
@@ -280,8 +234,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # --------------------------------------------------------- #
         self.connectionButton.connect('clicked(bool)', self.onConnectionButton)
         self.disconnectionButton.connect('clicked(bool)', self.onDisconnectionButton)
-        self.createCollectionButton.connect('clicked(bool)', self.onCreateCollectionButton)
-        self.createPatientButton.connect('clicked(bool)', self.onCreatePatientButton)
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
         self.downloadRadioButtonPatientDate.toggled.connect(self.onRadioButtontoggled)
         self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
@@ -289,19 +241,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.emailInput.textChanged.connect(self.onInputChanged)
         self.passwordInput.textChanged.connect(self.onInputChanged)
-        self.attachmentNameInput.textChanged.connect(self.onAttachmentNameChanged)
-        self.newCollectionNameInput.textChanged.connect(self.onNewCollectionNameInputChanged)
-        self.newPatientIdInput.textChanged.connect(self.onNewPatientIdInputChanged)
-        self.downloadCollectionSelector.connect('currentIndexChanged(const QString&)',
-                                                lambda text, type="download":
-                                                self.fillSelectorsWithPatients(text, type))
-        self.uploadCollectionSelector.connect('currentIndexChanged(const QString&)',
-                                              lambda text, type="upload":
-                                              self.fillSelectorsWithPatients(text, type))
+        self.downloadCollectionSelector.connect('currentIndexChanged(const QString&)',self.fillSelectorWithPatients)
         self.downloadPatientSelector.connect('currentIndexChanged(const QString&)', self.onDownloadPatientChosen)
-        self.uploadPatientSelector.connect('currentIndexChanged(const QString&)',
-                                           lambda text, type="upload":
-                                           self.onUploadPatientChosen(text, type))
         self.downloadDate.connect('clicked(const QDate&)',self.fillSelectorWithAttachments)
 
         # --- Try to connect when launching the module --- #
@@ -315,7 +256,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.connectionGroupBox.hide()
             self.connectionButton.hide()
             self.disconnectionButton.show()
-            self.fillSelectorsWithCollections()
+            self.fillSelectorWithCollections()
             self.downloadCollapsibleButton.show()
             self.uploadCollapsibleButton.show()
 
@@ -337,7 +278,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.connectionGroupBox.hide()
             self.connectionButton.hide()
             self.disconnectionButton.show()
-            self.fillSelectorsWithCollections()
+            self.fillSelectorWithCollections()
             self.downloadCollapsibleButton.show()
             self.uploadCollapsibleButton.show()
         elif token == -1:
@@ -361,45 +302,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # Erase token from file
         with open(self.tokenFilePath, "w"):
             pass
-
-    # Function used to create a new collection if everything is ok
-    def onCreateCollectionButton(self):
-        newName = self.newCollectionNameInput.text
-        # Create payload for posting new collection
-        data = {"name": newName, "type": "morphologicalDataCollection"}
-        myLib.createMorphologicalDataCollection(data)
-
-        # Prepare to display patientId in this collection
-        self.collections = myLib.getMorphologicalDataCollections().json()
-        self.downloadCollectionSelector
-        self.fillSelectorsWithCollections()
-        index = self.uploadCollectionSelector.findText(newName)
-        self.uploadCollectionSelector.setCurrentIndex(index)
-
-        # Hide create groupBox
-        self.collectionCreatorGroupBox.hide()
-
-    # Function used to create a new patientId if everything is ok
-    def onCreatePatientButton(self):
-        newPatientId = self.newPatientIdInput.text
-        data = {"patientId": newPatientId, "type": "morphologicalData"}
-        id = myLib.createMorphologicalData(data).json()["id"]
-        collection = self.uploadCollectionSelector.currentText
-        for items in self.collections:
-            if items["name"] == collection:
-                collectionJson = myLib.getMorphologicalDataCollection(items["_id"]).json()
-        collectionJson["items"].append({'_id': id})
-        myLib.updateMorphologicalDataCollection(json.dumps(collectionJson))
-
-        # Refill the patient selectors
-        self.fillSelectorsWithPatients(collection, "upload")
-        self.fillSelectorsWithPatients(collection, "download")
-        index = self.uploadPatientSelector.findText(newPatientId)
-        self.uploadPatientSelector.setCurrentIndex(index)
-
-        # Hide create groupBox
-        self.patientCreatorGroupBox.hide()
-
 
     def onRadioButtontoggled(self):
         self.downloadErrorText.hide()
@@ -474,92 +376,40 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         file = open(collectionPath + '/.DBIDescriptor', 'w+')
         json.dump(descriptor,file)
+        self.uploadFilepathSelector.directory = collectionPath
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
-        for items in self.morphologicalData:
-            if items["patientId"] == self.uploadPatientSelector.currentText:
-                documentId = items["_id"]
-
-        # Write the polydata in a temporary file
-        meshWriter = vtk.vtkPolyDataWriter()
-        meshWriter.SetInputData(self.modelSelector.currentNode().GetPolyData())
-        filepath = slicer.app.temporaryPath + '/' + self.attachmentNameInput.text + '.vtk'
-        meshWriter.SetFileName(filepath)
-        meshWriter.Write()
-
-        # Send the file to the database
-        data = open(filepath)
-        myLib.addAttachment(documentId, self.attachmentNameInput.text + '.vtk', data)
+        pass
 
     # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
         self.connectionButton.enabled = (len(self.emailInput.text) != 0 and len(self.passwordInput.text) != 0)
 
-    # Function used to enable the upload button if everything is ok
-    def onAttachmentNameChanged(self):
-        collectionName = self.uploadCollectionSelector.currentText
-        text = self.uploadPatientSelector.currentText
-        temp = collectionName != "None" and collectionName != "Create"
-        temp = temp and text != "None" and text != "None" and len(self.attachmentNameInput.text) != 0
-        self.uploadButton.enabled = temp and self.modelSelector.currentNode() != None
-
-    # Function used to enable the upload button if the collection creation is ok
-    def onNewCollectionNameInputChanged(self):
-        self.createCollectionButton.enabled = len(self.newCollectionNameInput.text) != 0
-
-    # Function used to enable the upload button if the patientId creation is ok
-    def onNewPatientIdInputChanged(self):
-        collectionName = self.uploadCollectionSelector.currentText
-        self.createPatientButton.enabled = len(
-            self.newPatientIdInput.text) != 0 and collectionName != "Create" and collectionName != "None"
-
     # Function used to fill the comboBoxes with morphologicalCollections
-    def fillSelectorsWithCollections(self):
+    def fillSelectorWithCollections(self):
         self.collections = myLib.getMorphologicalDataCollections().json()
         self.downloadCollectionSelector.clear()
-        self.uploadCollectionSelector.clear()
         for items in self.collections:
             self.downloadCollectionSelector.addItem(items["name"])
-            self.uploadCollectionSelector.addItem(items["name"])
         if self.downloadCollectionSelector.count == 0:
             self.downloadCollectionSelector.addItem("None")
-        if self.uploadCollectionSelector.count == 0:
-            self.uploadCollectionSelector.addItem("None")
-        self.uploadCollectionSelector.insertSeparator(self.uploadCollectionSelector.count)
-        self.uploadCollectionSelector.addItem("Create")
 
-    # Function used to fill the comboBoxes with patientId corresponding to the collection selected
-    def fillSelectorsWithPatients(self, text, type):
-        if text == "Create":
-            self.collectionCreatorGroupBox.show()
-        else:
-            self.collectionCreatorGroupBox.hide()
-            self.downloadButton.enabled = text
-            if text != "None":
-                self.downloadCollectionButton.enabled = True
-                # Get the patientIds in the selected collection
-                for items in self.collections:
-                    if items["name"] == text:
-                        self.morphologicalData = myLib.getMorphologicalData(items["_id"]).json()
-
-                # Fill the right comboBox
-                if type == "download":
-                    self.downloadPatientSelector.clear()
-                    for items in self.morphologicalData:
-                        if self.downloadPatientSelector.findText(items["patientId"]) ==-1:
-                            self.downloadPatientSelector.addItem(items["patientId"])
-                    if self.downloadPatientSelector.count == 0:
-                        self.downloadPatientSelector.addItem("None")
-                if type == "upload":
-                    self.uploadPatientSelector.clear()
-                    for items in self.morphologicalData:
-                        if self.uploadPatientSelector.findText(items["patientId"]) ==-1:
-                            self.uploadPatientSelector.addItem(items["patientId"])
-                    if self.uploadPatientSelector.count == 0:
-                        self.uploadPatientSelector.addItem("None")
-                    self.uploadPatientSelector.insertSeparator(self.uploadPatientSelector.count)
-                    self.uploadPatientSelector.addItem("Create")
+    # Function used to fill the comboBox with patientId corresponding to the collection selected
+    def fillSelectorWithPatients(self, text):
+        self.downloadButton.enabled = text
+        if text != "None":
+            self.downloadCollectionButton.enabled = True
+            # Get the patientIds in the selected collection
+            for items in self.collections:
+                if items["name"] == text:
+                    self.morphologicalData = myLib.getMorphologicalData(items["_id"]).json()
+            self.downloadPatientSelector.clear()
+            for items in self.morphologicalData:
+                if self.downloadPatientSelector.findText(items["patientId"]) ==-1:
+                    self.downloadPatientSelector.addItem(items["patientId"])
+            if self.downloadPatientSelector.count == 0:
+                self.downloadPatientSelector.addItem("None")
 
     # Function used to fill a comboBox with attachments retrieved by queries
     def fillSelectorWithAttachments(self):
@@ -591,19 +441,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.downloadButton.enabled = True
             self.fillSelectorWithAttachments()
 
-    # Function used to enable upload button or show the groupBox to create a new patient
-    def onUploadPatientChosen(self, text, type):
-        # Logic test to enable upload button if everything is ok
-        collectionName = self.uploadCollectionSelector.currentText
-        if collectionName != "None" and collectionName != "Create":
-            if text != "None" and text != "None":
-                if len(self.attachmentNameInput.text) != 0 and self.modelSelector.currentNode() != None:
-                    self.uploadButton.enabled = True
-        if text == "Create":
-            self.patientCreatorGroupBox.show()
-        else:
-            self.patientCreatorGroupBox.hide()
+    def checkUploadDifferences(self):
 
+        print "Something ToDo"
 
 #
 # DatabaseInteractorLogic
