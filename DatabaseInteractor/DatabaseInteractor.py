@@ -377,7 +377,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         file = open(collectionPath + '/.DBIDescriptor', 'w+')
         json.dump(descriptor,file)
-        # self.uploadFilepathSelector.directory = collectionPath
+        file.close()
+        self.uploadFilepathSelector.directory = collectionPath
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
