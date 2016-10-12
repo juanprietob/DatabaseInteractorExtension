@@ -224,7 +224,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadButton = qt.QPushButton("Upload")
         self.uploadButton.toolTip = "Upload patient data."
         self.uploadFormLayout.addRow(self.uploadButton)
-        self.uploadButton.enabled = False
+        self.uploadButton.enabled = True
 
         # Add vertical spacer
         self.layout.addStretch(1)
@@ -382,7 +382,19 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
-        pass
+        collection = self.uploadFilepathSelector.directory[self.uploadFilepathSelector.directory.rfind("/") + 1:]
+        # Create new patients in DB
+        for newPatientId in self.newPatientsList:
+            data = {"patientId": newPatientId, "type": "morphologicalData"}
+            id = myLib.createMorphologicalData(data).json()["id"]
+            for items in self.collections:
+                if items["name"] == collection:
+                    collectionJson = myLib.getMorphologicalDataCollection(items["_id"]).json()
+            collectionJson["items"].append({'_id': id})
+            myLib.updateMorphologicalDataCollection(json.dumps(collectionJson))
+            # Refill the patient selector
+            self.fillSelectorWithPatients()
+        # Add new attachments to patient
 
     # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
@@ -398,7 +410,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.downloadCollectionSelector.addItem("None")
 
     # Function used to fill the comboBox with patientId corresponding to the collection selected
-    def fillSelectorWithPatients(self, text):
+    def fillSelectorWithPatients(self):
+        text = self.downloadCollectionSelector.currentText
         self.downloadButton.enabled = text
         if text != "None":
             self.downloadCollectionButton.enabled = True
@@ -444,9 +457,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithAttachments()
 
     def checkUploadDifferences(self):
-        patientList = []
-        newPatientsList = []
-        newAttachmentsList = []
+        self.newPatientsList = []
+        self.newAttachmentsList = []
         self.uploadListView.clear()
 
         directoryPath = self.uploadFilepathSelector.directory
@@ -460,13 +472,13 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         for folderName in os.listdir(self.uploadFilepathSelector.directory):
             if folderName[0] != "." and folderName not in patientList:
                 print ("New patient: " + folderName)
-                newPatientsList.append(folderName)
+                self.newPatientsList.append(folderName)
                 for dates in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName):
                     if dates[0] != ".":
                         for newFileName in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName + '/' + dates):
                             if newFileName[0] != '.':
                                 print ("New attachment: " + folderName + '/' + dates + '/' + newFileName)
-                                newAttachmentsList.append(folderName + '/' + dates + '/' + newFileName)
+                                self.newAttachmentsList.append(folderName + '/' + dates + '/' + newFileName)
 
             # Check for new data for already existing patients
             elif folderName in patientList:
@@ -476,10 +488,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                         for newFileName in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName + '/' + dates):
                             if newFileName[0] != '.':
                                 print ("New attachment: " + folderName + '/' + dates + '/' + newFileName)
-                                newAttachmentsList.append(folderName + '/' + dates + '/' + newFileName)
+                                self.newAttachmentsList.append(folderName + '/' + dates + '/' + newFileName)
 
         # Display new attachments in the ListWidget
-        self.uploadListView.addItems(newAttachmentsList)
+        self.uploadListView.addItems(self.newAttachmentsList)
 
 
 #
