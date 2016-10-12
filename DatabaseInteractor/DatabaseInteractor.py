@@ -244,6 +244,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadCollectionSelector.connect('currentIndexChanged(const QString&)',self.fillSelectorWithPatients)
         self.downloadPatientSelector.connect('currentIndexChanged(const QString&)', self.onDownloadPatientChosen)
         self.downloadDate.connect('clicked(const QDate&)',self.fillSelectorWithAttachments)
+        self.uploadFilepathSelector.connect('directorySelected(const QString &)', self.checkUploadDifferences)
 
         # --- Try to connect when launching the module --- #
         file = open(self.tokenFilePath, 'r')
@@ -376,7 +377,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         file = open(collectionPath + '/.DBIDescriptor', 'w+')
         json.dump(descriptor,file)
-        self.uploadFilepathSelector.directory = collectionPath
+        # self.uploadFilepathSelector.directory = collectionPath
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
@@ -442,8 +443,43 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithAttachments()
 
     def checkUploadDifferences(self):
+        patientList = []
+        newPatientsList = []
+        newAttachmentsList = []
+        self.uploadListView.clear()
 
-        print "Something ToDo"
+        directoryPath = self.uploadFilepathSelector.directory
+        if os.path.exists(directoryPath + '/.DBIDescriptor'):
+            file = open(directoryPath + '/.DBIDescriptor')
+            collectionDescriptor = json.load(file)
+            patientList = collectionDescriptor["items"].keys()
+        else:
+            return -1
+        # Check for new patients
+        for folderName in os.listdir(self.uploadFilepathSelector.directory):
+            if folderName[0] != "." and folderName not in patientList:
+                print ("New patient: " + folderName)
+                newPatientsList.append(folderName)
+                for dates in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName):
+                    if dates[0] != ".":
+                        for newFileName in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName + '/' + dates):
+                            if newFileName[0] != '.':
+                                print ("New attachment: " + folderName + '/' + dates + '/' + newFileName)
+                                newAttachmentsList.append(folderName + '/' + dates + '/' + newFileName)
+
+            # Check for new data for already existing patients
+            elif folderName in patientList:
+                attachmentList = collectionDescriptor["items"][folderName].keys()
+                for dates in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName):
+                    if dates[0] != "." and dates not in attachmentList:
+                        for newFileName in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName + '/' + dates):
+                            if newFileName[0] != '.':
+                                print ("New attachment: " + folderName + '/' + dates + '/' + newFileName)
+                                newAttachmentsList.append(folderName + '/' + dates + '/' + newFileName)
+
+        # Display new attachments in the ListWidget
+        self.uploadListView.addItems(newAttachmentsList)
+
 
 #
 # DatabaseInteractorLogic
