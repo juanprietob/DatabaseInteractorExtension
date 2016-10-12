@@ -224,7 +224,81 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadButton = qt.QPushButton("Upload")
         self.uploadButton.toolTip = "Upload patient data."
         self.uploadFormLayout.addRow(self.uploadButton)
-        self.uploadButton.enabled = True
+        self.uploadButton.enabled = False
+
+        # ----------------------------------------------- #
+        # - Definition of management collapsible button - #
+        # ----------------------------------------------- #
+        # Collapsible button
+        self.managementCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.managementCollapsibleButton.text = "Management"
+        self.layout.addWidget(self.managementCollapsibleButton, 0)
+        self.managementFormLayout = qt.QFormLayout(self.managementCollapsibleButton)
+        self.managementCollapsibleButton.hide()
+
+        # Creation type selector groupBox
+        self.creationTypeGroupBox = qt.QGroupBox("Action wanted:")
+        self.creationTypeGroupBoxLayout = qt.QHBoxLayout(self.creationTypeGroupBox)
+
+        # RadioButtons choice
+        self.managementRadioButtonPatient = qt.QRadioButton("Create PatientId")
+        self.managementRadioButtonPatient.setChecked(True)
+        self.managementRadioButtonDate = qt.QRadioButton("Add a new date")
+        self.creationTypeGroupBoxLayout.addWidget(self.managementRadioButtonPatient)
+        self.creationTypeGroupBoxLayout.addWidget(self.managementRadioButtonDate)
+        self.managementFormLayout.addRow(self.creationTypeGroupBox)
+
+        # Directory Button
+        self.managementFilepathSelector = ctk.ctkDirectoryButton()
+        self.managementFilepathSelector.toolTip = "Choose the path to the folder where you saved patient files."
+        self.managementFormLayout.addRow(qt.QLabel("Choose collection folder: "), self.managementFilepathSelector)
+
+        # Patient name input
+        self.newPatientIdInput = qt.QLineEdit()
+        self.newPatientIdInput.text = ''
+        self.newPatientIdInputLabel = qt.QLabel("Enter PatiendId: ")
+        self.managementFormLayout.addRow(self.newPatientIdInputLabel, self.newPatientIdInput)
+
+        # Patient Selector
+        self.managementPatientSelector = qt.QComboBox()
+        self.managementPatientSelector.addItem("None")
+        self.managementPatientSelectorLabel = qt.QLabel("Choose a patient: ")
+        self.managementFormLayout.addRow(self.managementPatientSelectorLabel, self.managementPatientSelector)
+        self.managementPatientSelector.hide()
+        self.managementPatientSelectorLabel.hide()
+
+        # Date Selector
+        self.createDate = qt.QCalendarWidget()
+        self.createDate.setStyleSheet(
+            "QCalendarWidget QWidget#qt_calendar_navigationbar{background-color:rgb(200,200,200);}"
+            "QCalendarWidget QWidget#qt_calendar_nextmonth{"
+            "qproperty-icon: url(" + scriptedModulesPath + "/Resources/Icons/ArrowRight.png);"
+            "qproperty-iconSize: 10px;width:20px;}"
+            "QCalendarWidget QWidget#qt_calendar_prevmonth{"
+            "qproperty-icon: url(" + scriptedModulesPath + "/Resources/Icons/ArrowLeft.png);"
+            "qproperty-iconSize: 10px;width:20px;}"
+            "QCalendarWidget QToolButton{height:25px;width:90px;color:black;icon-size:25px,25px;"
+            "background-color:rgb(200,200,200);}"
+            "QCalendarWidget QMenu{width:125px;background-color:rgb(200,200,200);}"
+            "QCalendarWidget QSpinBox{width:65px;background-color:rgb(200,200,200);"
+            "selection-background-color:rgb(200,200,200);selection-color:black;}"
+            "QCalendarWidget QWidget{alternate-background-color:rgb(225,225,225);}"
+            "QCalendarWidget QAbstractItemView:enabled{color:rgb(100,100,100);"
+            "selection-background-color:rgb(200,200,200);selection-color:white;}"
+            "QCalendarWidget QAbstractItemView:disabled {color: rgb(200, 200, 200);}")
+        self.createDateLabel = qt.QLabel("Choose a date: ")
+        self.managementFormLayout.addRow(self.createDateLabel, self.createDate)
+
+        # Patient Creator Button
+        self.createPatientButton = qt.QPushButton("Create patient Id")
+        self.createPatientButton.enabled = False
+        self.managementFormLayout.addRow(self.createPatientButton)
+
+        # Date Creator Button
+        self.createDateButton = qt.QPushButton("Add this date")
+        self.createDateButton.enabled = False
+        self.managementFormLayout.addRow(self.createDateButton)
+        self.createDateButton.hide()
 
         # Add vertical spacer
         self.layout.addStretch(1)
@@ -236,6 +310,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.disconnectionButton.connect('clicked(bool)', self.onDisconnectionButton)
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
         self.downloadRadioButtonPatientDate.toggled.connect(self.onRadioButtontoggled)
+        self.managementRadioButtonDate.toggled.connect(self.onManagementRadioButtontoggled)
+        self.managementRadioButtonPatient.toggled.connect(self.onManagementRadioButtontoggled)
         self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
         self.downloadCollectionButton.connect('clicked(bool)',self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
@@ -260,6 +336,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithCollections()
             self.downloadCollapsibleButton.show()
             self.uploadCollapsibleButton.show()
+            if myLib.getUserScope() > 2:
+                self.managementCollapsibleButton.show()
 
         file.close()
 
@@ -282,6 +360,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithCollections()
             self.downloadCollapsibleButton.show()
             self.uploadCollapsibleButton.show()
+            self.managementCollapsibleButton.show()
+            if myLib.getUserScope() < 3:
+                self.managementCollapsibleButton.hide()
         elif token == -1:
             self.errorLoginText.text = error
             self.errorLoginText.show()
@@ -300,6 +381,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.disconnectionButton.hide()
         self.downloadCollapsibleButton.hide()
         self.uploadCollapsibleButton.hide()
+        self.managementCollapsibleButton.hide()
         # Erase token from file
         with open(self.tokenFilePath, "w"):
             pass
@@ -313,6 +395,23 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         else:
             self.downloadDateLabel.show()
             self.downloadDate.show()
+
+    def onManagementRadioButtontoggled(self):
+        if self.managementRadioButtonPatient.isChecked():
+            self.managementPatientSelector.hide()
+            self.createDateButton.hide()
+            self.managementPatientSelectorLabel.hide()
+            self.createPatientButton.show()
+            self.newPatientIdInput.show()
+            self.newPatientIdInputLabel.show()
+        else:
+            self.createPatientButton.hide()
+            self.newPatientIdInput.hide()
+            self.newPatientIdInputLabel.hide()
+            self.managementPatientSelector.show()
+            self.createDateButton.show()
+            self.managementPatientSelectorLabel.show()
+
 
     # Function used to download data with information provided
     def onDownloadButton(self):
@@ -492,7 +591,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         # Display new attachments in the ListWidget
         self.uploadListView.addItems(self.newAttachmentsList)
-
+        if self.uploadListView.count != 0:
+            self.uploadButton.enabled = True
+        else:
+            self.uploadButton.enabled = False
 
 #
 # DatabaseInteractorLogic
