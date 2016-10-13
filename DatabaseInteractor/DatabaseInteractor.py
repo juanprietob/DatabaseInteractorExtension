@@ -289,16 +289,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.createDateLabel = qt.QLabel("Choose a date: ")
         self.managementFormLayout.addRow(self.createDateLabel, self.createDate)
 
-        # Patient Creator Button
-        self.createPatientButton = qt.QPushButton("Create patient Id")
-        self.createPatientButton.enabled = False
-        self.managementFormLayout.addRow(self.createPatientButton)
-
-        # Date Creator Button
-        self.createDateButton = qt.QPushButton("Add this date")
-        self.createDateButton.enabled = False
-        self.managementFormLayout.addRow(self.createDateButton)
-        self.createDateButton.hide()
+        # Patient & Date Creator Button
+        self.createButton = qt.QPushButton("Create patient Id")
+        self.createButton.enabled = False
+        self.managementFormLayout.addRow(self.createButton)
 
         # Add vertical spacer
         self.layout.addStretch(1)
@@ -313,8 +307,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
         self.downloadCollectionButton.connect('clicked(bool)',self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
-        self.createDateButton.connect('clicked(bool)',self.onCreateButton)
-        self.createPatientButton.connect('clicked(bool)',self.onCreateButton)
+        self.createButton.connect('clicked(bool)',self.onCreateButton)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -416,19 +409,20 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def onManagementRadioButtontoggled(self):
         if self.managementRadioButtonPatient.isChecked():
             self.managementPatientSelector.hide()
-            self.createDateButton.hide()
             self.managementPatientSelectorLabel.hide()
-            self.createPatientButton.show()
             self.newPatientIdInput.show()
             self.newPatientIdInputLabel.show()
+            self.createButton.setText("Create this patientId")
+            self.isPossibleCreatePatient()
         else:
+
             self.fillSelectorWithDescriptorPatients()
-            self.createPatientButton.hide()
             self.newPatientIdInput.hide()
             self.newPatientIdInputLabel.hide()
             self.managementPatientSelector.show()
-            self.createDateButton.show()
             self.managementPatientSelectorLabel.show()
+            self.createButton.setText("Add this date")
+            self.isPossibleAddDate()
 
 
     # Function used to download data with information provided
@@ -686,15 +680,15 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     def isPossibleCreatePatient(self):
         directoryPath = self.managementFilepathSelector.directory
-        self.createPatientButton.enabled = False
+        self.createButton.enabled = False
         if self.newPatientIdInput.text != '' and os.path.exists(directoryPath + '/.DBIDescriptor'):
-            self.createPatientButton.enabled = True
+            self.createButton.enabled = True
 
     def isPossibleAddDate(self):
         directoryPath = self.managementFilepathSelector.directory
-        self.createDateButton.enabled = False
+        self.createButton.enabled = False
         if self.managementPatientSelector.currentText != 'None' and os.path.exists(directoryPath + '/.DBIDescriptor'):
-            self.createDateButton.enabled = True
+            self.createButton.enabled = True
 
 
 #
