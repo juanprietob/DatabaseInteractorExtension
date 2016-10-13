@@ -119,7 +119,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadCollapsibleButton.hide()
 
         # Query type selector groupBox
-        self.queryTypeGroupBox = qt.QGroupBox("Find data with :")
+        self.queryTypeGroupBox = qt.QGroupBox("Find data with:")
         self.queryTypeGroupBoxLayout = qt.QHBoxLayout(self.queryTypeGroupBox)
 
         # RadioButtons choices
@@ -306,21 +306,38 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # --------------------------------------------------------- #
         # ----------------------- Signals ------------------------- #
         # --------------------------------------------------------- #
+
+        # Buttons
         self.connectionButton.connect('clicked(bool)', self.onConnectionButton)
         self.disconnectionButton.connect('clicked(bool)', self.onDisconnectionButton)
+        self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
+        self.downloadCollectionButton.connect('clicked(bool)',self.onDownloadCollectionButton)
+        self.uploadButton.connect('clicked(bool)', self.onUploadButton)
+        self.createDateButton.connect('clicked(bool)',self.onCreateDateButton)
+        self.createPatientButton.connect('clicked(bool)',self.onCreatePatientButton)
+
+        # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
         self.downloadRadioButtonPatientDate.toggled.connect(self.onRadioButtontoggled)
         self.managementRadioButtonDate.toggled.connect(self.onManagementRadioButtontoggled)
         self.managementRadioButtonPatient.toggled.connect(self.onManagementRadioButtontoggled)
-        self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
-        self.downloadCollectionButton.connect('clicked(bool)',self.onDownloadCollectionButton)
-        self.uploadButton.connect('clicked(bool)', self.onUploadButton)
+
+        # Inputs
         self.emailInput.textChanged.connect(self.onInputChanged)
         self.passwordInput.textChanged.connect(self.onInputChanged)
+        self.newPatientIdInput.textChanged.connect(self.isPossibleCreatePatient)
+
+        # ComboBoxes
         self.downloadCollectionSelector.connect('currentIndexChanged(const QString&)',self.fillSelectorWithPatients)
         self.downloadPatientSelector.connect('currentIndexChanged(const QString&)', self.onDownloadPatientChosen)
+        self.managementPatientSelector.connect('currentIndexChanged(const QString&)', self.isPossibleAddDate)
+
+        # Calendar
         self.downloadDate.connect('clicked(const QDate&)',self.fillSelectorWithAttachments)
+
+        # FilePath selectors
         self.uploadFilepathSelector.connect('directorySelected(const QString &)', self.checkUploadDifferences)
+        self.managementFilepathSelector.connect('directorySelected(const QString &)', self.onManagementDirectorySelected)
 
         # --- Try to connect when launching the module --- #
         file = open(self.tokenFilePath, 'r')
@@ -405,6 +422,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.newPatientIdInput.show()
             self.newPatientIdInputLabel.show()
         else:
+            self.fillSelectorWithDescriptorPatients()
             self.createPatientButton.hide()
             self.newPatientIdInput.hide()
             self.newPatientIdInputLabel.hide()
@@ -456,26 +474,28 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         # Fill the folders with attachments
         for items in self.morphologicalData:
-            documentId = items["_id"]
-            attachmentName = items["_attachments"].keys()[0]
-            patientId = items["patientId"]
-            date = items["date"]
-            descriptor["items"][patientId][date[:10]] = collectionPath + "/" + patientId + "/" + date[:10] + "/.DBIDescriptor"
+            if "_attachments" in items:
+                documentId = items["_id"]
+                attachmentName = items["_attachments"].keys()[0]
+                patientId = items["patientId"]
+                date = items["date"]
+                descriptor["items"][patientId][date[:10]] = collectionPath + "/" + patientId + "/" + date[:10] + "/.DBIDescriptor"
 
-            if not os.path.exists(collectionPath + "/" + patientId + "/" + date[:10]):
-                os.makedirs(collectionPath + "/" + patientId + "/" + date[:10])
-            data = myLib.getAttachment(documentId, attachmentName, None).text
-            # Save the document
-            file = open(collectionPath + '/' + patientId + '/' + date[:10] + '/.DBIDescriptor','w+')
-            json.dump(items, file)
+                if not os.path.exists(collectionPath + "/" + patientId + "/" + date[:10]):
+                    os.makedirs(collectionPath + "/" + patientId + "/" + date[:10])
+                data = myLib.getAttachment(documentId, attachmentName, None).text
+                # Save the document
+                file = open(collectionPath + '/' + patientId + '/' + date[:10] + '/.DBIDescriptor','w+')
+                json.dump(items, file, indent=3, sort_keys=True)
+                file.close()
 
-            # Save the attachment
-            file = open(collectionPath + '/' + patientId + '/' + date[:10] + '/' + attachmentName,'w+')
-            file.write(data)
-            file.close()
+                # Save the attachment
+                file = open(collectionPath + '/' + patientId + '/' + date[:10] + '/' + attachmentName,'w+')
+                file.write(data)
+                file.close()
 
         file = open(collectionPath + '/.DBIDescriptor', 'w+')
-        json.dump(descriptor,file)
+        json.dump(descriptor,file, indent=3, sort_keys=True)
         file.close()
         self.uploadFilepathSelector.directory = collectionPath
 
@@ -494,6 +514,55 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             # Refill the patient selector
             self.fillSelectorWithPatients()
         # Add new attachments to patient
+
+    def onCreateDateButton(self):
+        collectionPath = self.managementFilepathSelector.directory
+        patientId = self.managementPatientSelector.currentText
+        date = str(self.createDate.selectedDate)
+        collection = self.managementFilepathSelector.directory[self.managementFilepathSelector.directory.rfind("/") + 1:]
+
+        # Add to database
+        owner = myLib.getUserEmail()
+        data = {
+            "patientId": patientId,
+            "date": date,
+            "owners": [{"user": owner}],
+            "type": "morphologicalData",
+        }
+        docId = myLib.createMorphologicalData(json.dumps(data)).json()["id"]
+        for items in self.collections:
+            if items["name"] == collection:
+                collectionJson = myLib.getMorphologicalDataCollection(items["_id"]).json()
+        collectionJson["items"].append({'_id': docId})
+        myLib.updateMorphologicalDataCollection(json.dumps(collectionJson))
+
+        # Create date folder
+        if not os.path.exists(collectionPath + "/" + patientId + "/" + date):
+            os.makedirs(collectionPath + "/" + patientId + "/" + date)
+
+        # Write descriptor
+        for items in myLib.getMorphologicalData(collectionJson["_id"]).json():
+            if items["_id"] == docId:
+                file = open(collectionPath + '/' + patientId + '/' + date + '/.DBIDescriptor', 'w+')
+                json.dump(items, file, indent=3, sort_keys=True)
+                file.close()
+
+        # Update collection descriptor
+        file = open(collectionPath + '/.DBIDescriptor','r')
+        jsonfile = json.load(file)
+        file.close()
+        jsonfile["items"][patientId][date] = collectionPath + '/' + patientId + '/' + date + '/.DBIDescriptor'
+        file = open(collectionPath + '/.DBIDescriptor','w+')
+        json.dump(jsonfile,file, indent=3, sort_keys=True)
+        file.close()
+
+
+    def onCreatePatientButton(self):
+        # Add to database
+        pass
+
+
+
 
     # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
@@ -525,6 +594,17 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             if self.downloadPatientSelector.count == 0:
                 self.downloadPatientSelector.addItem("None")
 
+    def fillSelectorWithDescriptorPatients(self):
+        directoryPath = self.managementFilepathSelector.directory
+        self.managementPatientSelector.clear()
+        if os.path.exists(directoryPath + '/.DBIDescriptor'):
+            file = open(directoryPath + '/.DBIDescriptor')
+            collectionDescriptor = json.load(file)
+            patientList = collectionDescriptor["items"].keys()
+            self.managementPatientSelector.addItems(patientList)
+        else:
+            self.managementPatientSelector.addItem("None")
+
     # Function used to fill a comboBox with attachments retrieved by queries
     def fillSelectorWithAttachments(self):
         self.downloadAttachmentSelector.clear()
@@ -534,14 +614,16 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         if self.downloadRadioButtonPatientOnly.isChecked():
             for items in self.morphologicalData:
                 if items["patientId"] == self.downloadPatientSelector.currentText:
-                    attachmentName = items["_attachments"].keys()[0]
-                    self.downloadAttachmentSelector.addItem(attachmentName)
+                    if "_attachments" in items:
+                        attachmentName = items["_attachments"].keys()[0]
+                        self.downloadAttachmentSelector.addItem(attachmentName)
         else:
             for items in self.morphologicalData:
                 # Check if the date is the same
                 if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(self.downloadDate.selectedDate):
-                    attachmentName = items["_attachments"].keys()[0]
-                    self.downloadAttachmentSelector.addItem(attachmentName)
+                    if "_attachments" in items:
+                        attachmentName = items["_attachments"].keys()[0]
+                        self.downloadAttachmentSelector.addItem(attachmentName)
             if attachmentName == "":
                 self.downloadAttachmentSelector.addItem("None")
                 self.downloadErrorText.show()
@@ -595,6 +677,27 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.uploadButton.enabled = True
         else:
             self.uploadButton.enabled = False
+
+    def onManagementDirectorySelected(self):
+        if self.managementRadioButtonPatient.isChecked():
+            self.isPossibleCreatePatient()
+        else:
+            self.fillSelectorWithDescriptorPatients()
+            self.isPossibleAddDate()
+
+
+    def isPossibleCreatePatient(self):
+        directoryPath = self.managementFilepathSelector.directory
+        self.createPatientButton.enabled = False
+        if self.newPatientIdInput.text != '' and os.path.exists(directoryPath + '/.DBIDescriptor'):
+            self.createPatientButton.enabled = True
+
+    def isPossibleAddDate(self):
+        directoryPath = self.managementFilepathSelector.directory
+        self.createDateButton.enabled = False
+        if self.managementPatientSelector.currentText != 'None' and os.path.exists(directoryPath + '/.DBIDescriptor'):
+            self.createDateButton.enabled = True
+
 
 #
 # DatabaseInteractorLogic

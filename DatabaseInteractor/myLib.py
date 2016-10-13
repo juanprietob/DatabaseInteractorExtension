@@ -303,6 +303,11 @@ def getUserScope():
                         headers={'Authorization': 'Bearer ' + token})
     return len(r.json()["scope"])
 
+def getUserEmail():
+    r = requests.get(url=server + 'auth/user',
+                     headers={'Authorization': 'Bearer ' + token})
+    return r.json()["email"]
+
 def setServer(serverParam,serverFilePath):
     global server
     server = serverParam
