@@ -509,6 +509,17 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     data = open(self.uploadFilepathSelector.directory + '/' + path,'r')
                     myLib.addAttachment(documentId,attachmentName,data)
 
+                    # Update descriptor
+                    for items in myLib.getMorphologicalDataByPatientId(patientId).json():
+                        if "_attachments" in items:
+                            for names in items["_attachments"].keys():
+                                if names == attachmentName:
+                                    file = open(self.uploadFilepathSelector.directory + '/' + patientId + '/' + date + '/.DBIDescriptor','w+')
+                                    json.dump(items, file, indent=3, sort_keys=True)
+                                    file.close()
+        self.newAttachmentsList = []
+        self.checkUploadDifferences()
+        self.morphologicalData = myLib.getMorphologicalData(items["_id"]).json()
 
     def onCreateButton(self):
         collectionPath = self.managementFilepathSelector.directory
@@ -671,7 +682,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                         # Check if attachment is new
                         for items in localAttachments:
                             if items not in onlineAttachment:
-                                print ("New attachment: " + folderName + '/' + dates + '/' + items)
                                 self.newAttachmentsList.append(folderName + '/' + dates + '/' + items)
 
         # Display new attachments in the ListWidget
