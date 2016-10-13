@@ -313,8 +313,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
         self.downloadCollectionButton.connect('clicked(bool)',self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
-        self.createDateButton.connect('clicked(bool)',self.onCreateDateButton)
-        self.createPatientButton.connect('clicked(bool)',self.onCreatePatientButton)
+        self.createDateButton.connect('clicked(bool)',self.onCreateButton)
+        self.createPatientButton.connect('clicked(bool)',self.onCreateButton)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -515,11 +515,15 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithPatients()
         # Add new attachments to patient
 
-    def onCreateDateButton(self):
+    def onCreateButton(self):
         collectionPath = self.managementFilepathSelector.directory
         patientId = self.managementPatientSelector.currentText
         date = str(self.createDate.selectedDate)
         collection = self.managementFilepathSelector.directory[self.managementFilepathSelector.directory.rfind("/") + 1:]
+
+        # Check if it is a new patient
+        if self.managementRadioButtonPatient.isChecked():
+            patientId = self.newPatientIdInput.text
 
         # Add to database
         owner = myLib.getUserEmail()
@@ -551,18 +555,12 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         file = open(collectionPath + '/.DBIDescriptor','r')
         jsonfile = json.load(file)
         file.close()
+        if patientId not in jsonfile["items"]:
+            jsonfile["items"][patientId] = {}
         jsonfile["items"][patientId][date] = collectionPath + '/' + patientId + '/' + date + '/.DBIDescriptor'
         file = open(collectionPath + '/.DBIDescriptor','w+')
         json.dump(jsonfile,file, indent=3, sort_keys=True)
         file.close()
-
-
-    def onCreatePatientButton(self):
-        # Add to database
-        pass
-
-
-
 
     # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
