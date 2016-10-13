@@ -428,8 +428,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     # Function used to download data with information provided
     def onDownloadButton(self):
         for items in self.morphologicalData:
-            if items["_attachments"].keys()[0] == self.downloadAttachmentSelector.currentText:
-                documentId = items["_id"]
+            if "_attachments" in items:
+                if items["_attachments"].keys()[0] == self.downloadAttachmentSelector.currentText:
+                    documentId = items["_id"]
         data = myLib.getAttachment(documentId, self.downloadAttachmentSelector.currentText, None).text
         # Write the attachment in a file
         filePath = self.downloadFilepathSelector.directory + '/' + self.downloadAttachmentSelector.currentText
@@ -636,7 +637,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithAttachments()
 
     def checkUploadDifferences(self):
-        self.newPatientsList = []
         self.newAttachmentsList = []
         self.uploadListView.clear()
 
@@ -647,27 +647,33 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             patientList = collectionDescriptor["items"].keys()
         else:
             return -1
-        # Check for new patients
-        for folderName in os.listdir(self.uploadFilepathSelector.directory):
-            if folderName[0] != "." and folderName not in patientList:
-                print ("New patient: " + folderName)
-                self.newPatientsList.append(folderName)
-                for dates in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName):
-                    if dates[0] != ".":
-                        for newFileName in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName + '/' + dates):
-                            if newFileName[0] != '.':
-                                print ("New attachment: " + folderName + '/' + dates + '/' + newFileName)
-                                self.newAttachmentsList.append(folderName + '/' + dates + '/' + newFileName)
 
-            # Check for new data for already existing patients
-            elif folderName in patientList:
-                attachmentList = collectionDescriptor["items"][folderName].keys()
-                for dates in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName):
-                    if dates[0] != "." and dates not in attachmentList:
-                        for newFileName in os.listdir(self.uploadFilepathSelector.directory + "/" + folderName + '/' + dates):
-                            if newFileName[0] != '.':
-                                print ("New attachment: " + folderName + '/' + dates + '/' + newFileName)
-                                self.newAttachmentsList.append(folderName + '/' + dates + '/' + newFileName)
+        # Check for new data for already existing patients
+        # Iterate over patients
+        for folderName in os.listdir(directoryPath):
+            if folderName[0] != '.':
+                # Iterate over dates
+                for dates in os.listdir(directoryPath + "/" + folderName):
+                    if dates[0] != '.':
+
+                        # Create a list of attachments in file
+                        localAttachments = os.listdir(directoryPath + '/' + folderName + '/' + dates)
+                        if '.DBIDescriptor' in localAttachments:
+                            localAttachments.remove('.DBIDescriptor')
+
+                        # Create a list of online attachments
+                        onlineAttachment = []
+                        if os.path.exists(directoryPath + '/' + folderName + '/' + dates + '/.DBIDescriptor'):
+                            file = open(directoryPath + '/' + folderName + '/' + dates + '/.DBIDescriptor')
+                            attachmentDescriptor = json.load(file)
+                            if "_attachments" in attachmentDescriptor:
+                                onlineAttachment = attachmentDescriptor["_attachments"].keys()
+
+                        # Check if attachment is new
+                        for items in localAttachments:
+                            if items not in onlineAttachment:
+                                print ("New attachment: " + folderName + '/' + dates + '/' + items)
+                                self.newAttachmentsList.append(folderName + '/' + dates + '/' + items)
 
         # Display new attachments in the ListWidget
         self.uploadListView.addItems(self.newAttachmentsList)
