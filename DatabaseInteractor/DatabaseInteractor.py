@@ -492,6 +492,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         json.dump(descriptor,file, indent=3, sort_keys=True)
         file.close()
         self.uploadFilepathSelector.directory = collectionPath
+        self.managementFilepathSelector.directory = collectionPath
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
@@ -555,6 +556,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         file = open(collectionPath + '/.DBIDescriptor','w+')
         json.dump(jsonfile,file, indent=3, sort_keys=True)
         file.close()
+        self.fillSelectorWithPatients()
 
     # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
@@ -585,6 +587,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     self.downloadPatientSelector.addItem(items["patientId"])
             if self.downloadPatientSelector.count == 0:
                 self.downloadPatientSelector.addItem("None")
+        self.downloadPatientSelector.model().sort(0)
+        self.downloadPatientSelector.setCurrentIndex(0)
 
     def fillSelectorWithDescriptorPatients(self):
         directoryPath = self.managementFilepathSelector.directory
@@ -596,6 +600,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.managementPatientSelector.addItems(patientList)
         else:
             self.managementPatientSelector.addItem("None")
+        self.managementPatientSelector.model().sort(0)
+        self.managementPatientSelector.setCurrentIndex(0)
 
     # Function used to fill a comboBox with attachments retrieved by queries
     def fillSelectorWithAttachments(self):
@@ -616,10 +622,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     if "_attachments" in items:
                         attachmentName = items["_attachments"].keys()[0]
                         self.downloadAttachmentSelector.addItem(attachmentName)
-            if attachmentName == "":
-                self.downloadAttachmentSelector.addItem("None")
-                self.downloadErrorText.show()
-                self.downloadButton.enabled = False
+        if attachmentName == "":
+            self.downloadAttachmentSelector.addItem("None")
+            self.downloadErrorText.show()
+            self.downloadButton.enabled = False
 
     # Function used to enable the download button when everything is ok
     def onDownloadPatientChosen(self):
