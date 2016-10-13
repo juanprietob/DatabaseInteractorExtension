@@ -498,18 +498,17 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
         collection = self.uploadFilepathSelector.directory[self.uploadFilepathSelector.directory.rfind("/") + 1:]
-        # Create new patients in DB
-        for newPatientId in self.newPatientsList:
-            data = {"patientId": newPatientId, "type": "morphologicalData"}
-            id = myLib.createMorphologicalData(data).json()["id"]
-            for items in self.collections:
-                if items["name"] == collection:
-                    collectionJson = myLib.getMorphologicalDataCollection(items["_id"]).json()
-            collectionJson["items"].append({'_id': id})
-            myLib.updateMorphologicalDataCollection(json.dumps(collectionJson))
-            # Refill the patient selector
-            self.fillSelectorWithPatients()
         # Add new attachments to patient
+        for path in self.newAttachmentsList:
+            attachmentName = os.path.split(path)[1]
+            patientId = os.path.split((os.path.split(path)[0]))[0]
+            date = os.path.split((os.path.split(path)[0]))[1]
+            for items in self.morphologicalData:
+                if items["patientId"] == patientId and items["date"][:10] == date:
+                    documentId = items["_id"]
+                    data = open(self.uploadFilepathSelector.directory + '/' + path,'r')
+                    myLib.addAttachment(documentId,attachmentName,data)
+
 
     def onCreateButton(self):
         collectionPath = self.managementFilepathSelector.directory
