@@ -334,23 +334,24 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                                                 self.onManagementDirectorySelected)
 
         # --- Try to connect when launching the module --- #
-        file = open(self.tokenFilePath, 'r')
-        first_line = file.readline()
-        myLib.getServer(self.serverFilePath)
-        if first_line != "":
-            # self.token = first_line
-            myLib.token = first_line
-            self.connected = True
-            self.connectionGroupBox.hide()
-            self.connectionButton.hide()
-            self.disconnectionButton.show()
-            self.fillSelectorWithCollections()
-            self.downloadCollapsibleButton.show()
-            self.uploadCollapsibleButton.show()
-            if myLib.getUserScope() > 2:
-                self.managementCollapsibleButton.show()
+        if os.path.exists(self.tokenFilePath):
+            file = open(self.tokenFilePath, 'r')
+            first_line = file.readline()
+            myLib.getServer(self.serverFilePath)
+            if first_line != "":
+                # self.token = first_line
+                myLib.token = first_line
+                self.connected = True
+                self.connectionGroupBox.hide()
+                self.connectionButton.hide()
+                self.disconnectionButton.show()
+                self.fillSelectorWithCollections()
+                self.downloadCollapsibleButton.show()
+                self.uploadCollapsibleButton.show()
+                if myLib.getUserScope() > 2:
+                    self.managementCollapsibleButton.show()
 
-        file.close()
+            file.close()
 
     def cleanup(self):
         pass
