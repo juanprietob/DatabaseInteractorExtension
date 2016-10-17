@@ -405,7 +405,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         file.close()
 
         # Load the file
-        slicer.util.loadModel(filePath)
+        self.fileLoader(filePath)
+        # slicer.util.loadModel(filePath)
 
     # Function used to download an entire collection and organise it with folders
     def onDownloadCollectionButton(self):
@@ -721,6 +722,40 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithDescriptorPatients()
             self.isPossibleAddDate()
 
+    def fileLoader(self, filepath):
+        # Documentation :
+        # http://wiki.slicer.org/slicerWiki/index.php/Documentation/4.5/SlicerApplication/SupportedDataFormat
+        sceneExtensions = ["mrml","mrb","xml","xcat"]
+        volumeExtensions = ["dcm","nrrd","nhdr","mhd","mha","vtk","hdr","img","nia","nii","bmp","pic","mask","gipl","jpg","jpeg","lsm","png","spr","tif","tiff","mgz","mrc","rec"]
+        modelExtensions = ["vtk","vtp","stl","obj","orig","inflated","sphere","white","smoothwm","pial","g","byu"]
+        fiducialExtensions = ["fcsv","txt"]
+        rulerExtensions = ["acsv","txt"]
+        transformExtensions = ["tfm","mat","txt","nrrd","nhdr","mha","mhd","nii"]
+        volumeRenderingExtensions = ["vp","txt"]
+        colorsExtensions = ["ctbl","txt"]
+
+        if filepath.rfind(".") != -1:
+            extension = filepath[filepath.rfind(".") + 1:]
+            if extension == "gz":
+                filepath[filepath[:filepath.rfind(".")].rfind(".") + 1:]
+
+        if extension in sceneExtensions:
+            slicer.util.loadScene(filepath)
+        if extension in volumeExtensions:
+            slicer.util.loadVolume(filepath)
+        if extension in modelExtensions:
+            slicer.util.loadModel(filepath)
+        if extension in fiducialExtensions:
+            if not slicer.util.loadFiducialList(filepath):
+                if not slicer.util.loadAnnotationFiducial(filepath):
+                    slicer.util.loadNodeFromFile(filepath)
+        # if extension in rulerExtensions:
+        if extension in transformExtensions:
+            slicer.util.loadTrandform(filepath)
+        # if extension in volumeRenderingExtensions:
+        if extension in colorsExtensions:
+            slicer.util.loadColorTable(filepath)
+
 
 #
 # DatabaseInteractorLogic
@@ -894,10 +929,10 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
     def test_importData(self):
         import urllib
         downloads = (
-            ('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd', slicer.util.loadVolume),
+            ('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd'),
         )
 
-        for url, name, loader in downloads:
+        for url, name in downloads:
             filePath = os.path.join(slicer.app.temporaryPath, name)
             if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
                 logging.info('Requesting download %s from %s...\n' % (name, url))
