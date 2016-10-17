@@ -50,8 +50,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.connected = False
         self.collections = dict()
         self.morphologicalData = dict()
-        self.tokenFilePath = slicer.app.temporaryPath + '/user.slicer_token'
-        self.serverFilePath = slicer.app.temporaryPath + '/user.slicer_server'
+        self.tokenFilePath = os.path.join(slicer.app.temporaryPath, 'user.slicer_token')
+        self.serverFilePath = os.path.join(slicer.app.temporaryPath, 'user.slicer_server')
         self.moduleName = 'DatabaseInteractor'
         scriptedModulesPath = eval('slicer.modules.%s.path' % self.moduleName.lower())
         scriptedModulesPath = os.path.dirname(scriptedModulesPath)
@@ -157,10 +157,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadDate.setStyleSheet(
             "QCalendarWidget QWidget#qt_calendar_navigationbar{background-color:rgb(200,200,200);}"
             "QCalendarWidget QWidget#qt_calendar_nextmonth{"
-            "qproperty-icon: url(" + scriptedModulesPath + "/Resources/Icons/ArrowRight.png);"
+            "qproperty-icon: url(" + os.path.join(scriptedModulesPath, "Resources", "Icons", "ArrowRight.png") + ");"
             "qproperty-iconSize: 10px;width:20px;}"
             "QCalendarWidget QWidget#qt_calendar_prevmonth{"
-            "qproperty-icon: url(" + scriptedModulesPath + "/Resources/Icons/ArrowLeft.png);"
+            "qproperty-icon: url(" + os.path.join(scriptedModulesPath, "Resources", "Icons", "ArrowLeft.png") + ");"
             "qproperty-iconSize: 10px;width:20px;}"
             "QCalendarWidget QToolButton{height:25px;width:90px;color:black;icon-size:25px,25px;"
             "background-color:rgb(200,200,200);}"
@@ -272,10 +272,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.createDate.setStyleSheet(
             "QCalendarWidget QWidget#qt_calendar_navigationbar{background-color:rgb(200,200,200);}"
             "QCalendarWidget QWidget#qt_calendar_nextmonth{"
-            "qproperty-icon: url(" + scriptedModulesPath + "/Resources/Icons/ArrowRight.png);"
+            "qproperty-icon: url(" + os.path.join(scriptedModulesPath, "Resources", "Icons", "ArrowRight.png") + ");"
             "qproperty-iconSize: 10px;width:20px;}"
             "QCalendarWidget QWidget#qt_calendar_prevmonth{"
-            "qproperty-icon: url(" + scriptedModulesPath + "/Resources/Icons/ArrowLeft.png);"
+            "qproperty-icon: url(" + os.path.join(scriptedModulesPath, "Resources", "Icons", "ArrowLeft.png") + ");"
             "qproperty-iconSize: 10px;width:20px;}"
             "QCalendarWidget QToolButton{height:25px;width:90px;color:black;icon-size:25px,25px;"
             "background-color:rgb(200,200,200);}"
@@ -305,9 +305,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.connectionButton.connect('clicked(bool)', self.onConnectionButton)
         self.disconnectionButton.connect('clicked(bool)', self.onDisconnectionButton)
         self.downloadButton.connect('clicked(bool)', self.onDownloadButton)
-        self.downloadCollectionButton.connect('clicked(bool)',self.onDownloadCollectionButton)
+        self.downloadCollectionButton.connect('clicked(bool)', self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
-        self.createButton.connect('clicked(bool)',self.onCreateButton)
+        self.createButton.connect('clicked(bool)', self.onCreateButton)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -321,16 +321,17 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.newPatientIdInput.textChanged.connect(self.isPossibleCreatePatient)
 
         # ComboBoxes
-        self.downloadCollectionSelector.connect('currentIndexChanged(const QString&)',self.fillSelectorWithPatients)
+        self.downloadCollectionSelector.connect('currentIndexChanged(const QString&)', self.fillSelectorWithPatients)
         self.downloadPatientSelector.connect('currentIndexChanged(const QString&)', self.onDownloadPatientChosen)
         self.managementPatientSelector.connect('currentIndexChanged(const QString&)', self.isPossibleAddDate)
 
         # Calendar
-        self.downloadDate.connect('clicked(const QDate&)',self.fillSelectorWithAttachments)
+        self.downloadDate.connect('clicked(const QDate&)', self.fillSelectorWithAttachments)
 
         # FilePath selectors
         self.uploadFilepathSelector.connect('directorySelected(const QString &)', self.checkUploadDifferences)
-        self.managementFilepathSelector.connect('directorySelected(const QString &)', self.onManagementDirectorySelected)
+        self.managementFilepathSelector.connect('directorySelected(const QString &)',
+                                                self.onManagementDirectorySelected)
 
         # --- Try to connect when launching the module --- #
         file = open(self.tokenFilePath, 'r')
@@ -356,8 +357,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to connect user to the database and store token in a file
     def onConnectionButton(self):
-        myLib.setServer(self.serverInput.text,self.serverFilePath)
-        token,error = myLib.connect(self.emailInput.text, self.passwordInput.text)
+        myLib.setServer(self.serverInput.text, self.serverFilePath)
+        token, error = myLib.connect(self.emailInput.text, self.passwordInput.text)
         if token != -1 and myLib.getUserScope() >= 2:
             # Write the token in a temporary file
             file = open(self.tokenFilePath, 'w+')
@@ -424,7 +425,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.createButton.setText("Add this date")
             self.isPossibleAddDate()
 
-
     # Function used to download data with information provided
     def onDownloadButton(self):
         for items in self.morphologicalData:
@@ -433,7 +433,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     documentId = items["_id"]
         data = myLib.getAttachment(documentId, self.downloadAttachmentSelector.currentText, None).text
         # Write the attachment in a file
-        filePath = self.downloadFilepathSelector.directory + '/' + self.downloadAttachmentSelector.currentText
+        filePath = os.path.join(self.downloadFilepathSelector.directory, self.downloadAttachmentSelector.currentText)
         file = open(filePath, 'w+')
         file.write(data)
         file.close()
@@ -443,7 +443,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to download an entire collection and organise it with folders
     def onDownloadCollectionButton(self):
-        collectionPath = self.downloadFilepathSelector.directory + '/' + self.downloadCollectionSelector.currentText
+        collectionPath = os.path.join(self.downloadFilepathSelector.directory,
+                                      self.downloadCollectionSelector.currentText)
         # Check if folder already exists
         if not os.path.exists(collectionPath):
             os.makedirs(collectionPath)
@@ -463,8 +464,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         while index < self.downloadPatientSelector.count:
             if self.downloadPatientSelector.itemText(index) != "None":
                 descriptor["items"][self.downloadPatientSelector.itemText(index)] = {}
-                if not os.path.exists(collectionPath + "/" + self.downloadPatientSelector.itemText(index)):
-                    os.makedirs(collectionPath + "/" + self.downloadPatientSelector.itemText(index))
+                if not os.path.exists(os.path.join(collectionPath, self.downloadPatientSelector.itemText(index))):
+                    os.makedirs(os.path.join(collectionPath, self.downloadPatientSelector.itemText(index)))
             index += 1
 
         # Fill the folders with attachments
@@ -474,30 +475,30 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 attachmentName = items["_attachments"].keys()[0]
                 patientId = items["patientId"]
                 date = items["date"]
-                descriptor["items"][patientId][date[:10]] = collectionPath + "/" + patientId + "/" + date[:10] + "/.DBIDescriptor"
+                descriptor["items"][patientId][date[:10]] = os.path.join(collectionPath, patientId, date[:10],
+                                                                         ".DBIDescriptor")
 
-                if not os.path.exists(collectionPath + "/" + patientId + "/" + date[:10]):
-                    os.makedirs(collectionPath + "/" + patientId + "/" + date[:10])
+                if not os.path.exists(os.path.join(collectionPath, patientId, date[:10])):
+                    os.makedirs(os.path.join(collectionPath, patientId, date[:10]))
                 data = myLib.getAttachment(documentId, attachmentName, None).text
                 # Save the document
-                file = open(collectionPath + '/' + patientId + '/' + date[:10] + '/.DBIDescriptor','w+')
+                file = open(os.path.join(collectionPath, patientId, date[:10], '.DBIDescriptor'), 'w+')
                 json.dump(items, file, indent=3, sort_keys=True)
                 file.close()
 
                 # Save the attachment
-                file = open(collectionPath + '/' + patientId + '/' + date[:10] + '/' + attachmentName,'w+')
+                file = open(os.path.join(collectionPath, patientId, date[:10], attachmentName), 'w+')
                 file.write(data)
                 file.close()
 
-        file = open(collectionPath + '/.DBIDescriptor', 'w+')
-        json.dump(descriptor,file, indent=3, sort_keys=True)
+        file = open(os.path.join(collectionPath, '.DBIDescriptor'), 'w+')
+        json.dump(descriptor, file, indent=3, sort_keys=True)
         file.close()
         self.uploadFilepathSelector.directory = collectionPath
         self.managementFilepathSelector.directory = collectionPath
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
-        collection = self.uploadFilepathSelector.directory[self.uploadFilepathSelector.directory.rfind("/") + 1:]
         # Add new attachments to patient
         for path in self.newAttachmentsList:
             attachmentName = os.path.split(path)[1]
@@ -506,15 +507,16 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             for items in self.morphologicalData:
                 if items["patientId"] == patientId and items["date"][:10] == date:
                     documentId = items["_id"]
-                    data = open(self.uploadFilepathSelector.directory + '/' + path,'r')
-                    myLib.addAttachment(documentId,attachmentName,data)
+                    data = open(os.path.join(self.uploadFilepathSelector.directory, path), 'r')
+                    myLib.addAttachment(documentId, attachmentName, data)
 
                     # Update descriptor
                     for items in myLib.getMorphologicalDataByPatientId(patientId).json():
                         if "_attachments" in items:
                             for names in items["_attachments"].keys():
                                 if names == attachmentName:
-                                    file = open(self.uploadFilepathSelector.directory + '/' + patientId + '/' + date + '/.DBIDescriptor','w+')
+                                    file = open(os.path.join(self.uploadFilepathSelector.directory, patientId, date,
+                                                             '.DBIDescriptor'), 'w+')
                                     json.dump(items, file, indent=3, sort_keys=True)
                                     file.close()
         self.newAttachmentsList = []
@@ -525,7 +527,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         collectionPath = self.managementFilepathSelector.directory
         patientId = self.managementPatientSelector.currentText
         date = str(self.createDate.selectedDate)
-        collection = self.managementFilepathSelector.directory[self.managementFilepathSelector.directory.rfind("/") + 1:]
+        collection = os.path.split(self.managementFilepathSelector.directory)[1]
 
         # Check if it is a new patient
         if self.managementRadioButtonPatient.isChecked():
@@ -547,25 +549,25 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         myLib.updateMorphologicalDataCollection(json.dumps(collectionJson))
 
         # Create date folder
-        if not os.path.exists(collectionPath + "/" + patientId + "/" + date):
-            os.makedirs(collectionPath + "/" + patientId + "/" + date)
+        if not os.path.exists(os.path.join(collectionPath, patientId, date)):
+            os.makedirs(os.path.join(collectionPath, patientId, date))
 
         # Write descriptor
         for items in myLib.getMorphologicalData(collectionJson["_id"]).json():
             if items["_id"] == docId:
-                file = open(collectionPath + '/' + patientId + '/' + date + '/.DBIDescriptor', 'w+')
+                file = open(os.path.join(collectionPath, patientId, date, '.DBIDescriptor'), 'w+')
                 json.dump(items, file, indent=3, sort_keys=True)
                 file.close()
 
         # Update collection descriptor
-        file = open(collectionPath + '/.DBIDescriptor','r')
+        file = open(os.path.join(collectionPath, '.DBIDescriptor'), 'r')
         jsonfile = json.load(file)
         file.close()
         if patientId not in jsonfile["items"]:
             jsonfile["items"][patientId] = {}
-        jsonfile["items"][patientId][date] = collectionPath + '/' + patientId + '/' + date + '/.DBIDescriptor'
-        file = open(collectionPath + '/.DBIDescriptor','w+')
-        json.dump(jsonfile,file, indent=3, sort_keys=True)
+        jsonfile["items"][patientId][date] = os.path.join(collectionPath, patientId, date, '.DBIDescriptor')
+        file = open(os.path.join(collectionPath, '.DBIDescriptor'), 'w+')
+        json.dump(jsonfile, file, indent=3, sort_keys=True)
         file.close()
         self.fillSelectorWithPatients()
 
@@ -594,7 +596,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     self.morphologicalData = myLib.getMorphologicalData(items["_id"]).json()
             self.downloadPatientSelector.clear()
             for items in self.morphologicalData:
-                if self.downloadPatientSelector.findText(items["patientId"]) ==-1:
+                if self.downloadPatientSelector.findText(items["patientId"]) == -1:
                     self.downloadPatientSelector.addItem(items["patientId"])
             if self.downloadPatientSelector.count == 0:
                 self.downloadPatientSelector.addItem("None")
@@ -604,8 +606,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def fillSelectorWithDescriptorPatients(self):
         directoryPath = self.managementFilepathSelector.directory
         self.managementPatientSelector.clear()
-        if os.path.exists(directoryPath + '/.DBIDescriptor'):
-            file = open(directoryPath + '/.DBIDescriptor')
+        if os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
+            file = open(os.path.join(directoryPath, '.DBIDescriptor'), 'r')
             collectionDescriptor = json.load(file)
             patientList = collectionDescriptor["items"].keys()
             self.managementPatientSelector.addItems(patientList)
@@ -629,7 +631,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         else:
             for items in self.morphologicalData:
                 # Check if the date is the same
-                if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(self.downloadDate.selectedDate):
+                if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(
+                        self.downloadDate.selectedDate):
                     if "_attachments" in items:
                         attachmentName = items["_attachments"].keys()[0]
                         self.downloadAttachmentSelector.addItem(attachmentName)
@@ -651,8 +654,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadListView.clear()
 
         directoryPath = self.uploadFilepathSelector.directory
-        if os.path.exists(directoryPath + '/.DBIDescriptor'):
-            file = open(directoryPath + '/.DBIDescriptor')
+        if os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
+            file = open(os.path.join(directoryPath, '.DBIDescriptor'), 'r')
             collectionDescriptor = json.load(file)
             patientList = collectionDescriptor["items"].keys()
         else:
@@ -663,18 +666,18 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         for folderName in os.listdir(directoryPath):
             if folderName[0] != '.':
                 # Iterate over dates
-                for dates in os.listdir(directoryPath + "/" + folderName):
+                for dates in os.listdir(os.path.join(directoryPath, folderName)):
                     if dates[0] != '.':
 
                         # Create a list of attachments in file
-                        localAttachments = os.listdir(directoryPath + '/' + folderName + '/' + dates)
+                        localAttachments = os.listdir(os.path.join(directoryPath, folderName, dates))
                         if '.DBIDescriptor' in localAttachments:
                             localAttachments.remove('.DBIDescriptor')
 
                         # Create a list of online attachments
                         onlineAttachment = []
-                        if os.path.exists(directoryPath + '/' + folderName + '/' + dates + '/.DBIDescriptor'):
-                            file = open(directoryPath + '/' + folderName + '/' + dates + '/.DBIDescriptor')
+                        if os.path.exists(os.path.join(directoryPath, folderName, dates, '.DBIDescriptor')):
+                            file = open(os.path.join(directoryPath, folderName, dates, '.DBIDescriptor'), 'r')
                             attachmentDescriptor = json.load(file)
                             if "_attachments" in attachmentDescriptor:
                                 onlineAttachment = attachmentDescriptor["_attachments"].keys()
@@ -682,7 +685,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                         # Check if attachment is new
                         for items in localAttachments:
                             if items not in onlineAttachment:
-                                self.newAttachmentsList.append(folderName + '/' + dates + '/' + items)
+                                self.newAttachmentsList.append(os.path.join(folderName, dates, items))
 
         # Display new attachments in the ListWidget
         self.uploadListView.addItems(self.newAttachmentsList)
@@ -698,17 +701,17 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithDescriptorPatients()
             self.isPossibleAddDate()
 
-
     def isPossibleCreatePatient(self):
         directoryPath = self.managementFilepathSelector.directory
         self.createButton.enabled = False
-        if self.newPatientIdInput.text != '' and os.path.exists(directoryPath + '/.DBIDescriptor'):
+        if self.newPatientIdInput.text != '' and os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
             self.createButton.enabled = True
 
     def isPossibleAddDate(self):
         directoryPath = self.managementFilepathSelector.directory
         self.createButton.enabled = False
-        if self.managementPatientSelector.currentText != 'None' and os.path.exists(directoryPath + '/.DBIDescriptor'):
+        if self.managementPatientSelector.currentText != 'None' and os.path.exists(
+                os.path.join(directoryPath, '.DBIDescriptor')):
             self.createButton.enabled = True
 
 
@@ -783,7 +786,7 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         )
 
         for url, name, loader in downloads:
-            filePath = slicer.app.temporaryPath + '/' + name
+            filePath = os.path.join(slicer.app.temporaryPath, name)
             if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
                 logging.info('Requesting download %s from %s...\n' % (name, url))
                 urllib.urlretrieve(url, filePath)
