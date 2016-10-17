@@ -348,6 +348,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def cleanup(self):
         pass
 
+    # ------------ Buttons -------------- #
     # Function used to connect user to the database and store token in a file
     def onConnectionButton(self):
         myLib.setServer(self.serverInput.text, self.serverFilePath)
@@ -389,34 +390,6 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # Erase token from file
         with open(self.tokenFilePath, "w"):
             pass
-
-    def onRadioButtontoggled(self):
-        self.downloadErrorText.hide()
-        self.fillSelectorWithAttachments()
-        if self.downloadRadioButtonPatientOnly.isChecked():
-            self.downloadDateLabel.hide()
-            self.downloadDate.hide()
-        else:
-            self.downloadDateLabel.show()
-            self.downloadDate.show()
-
-    def onManagementRadioButtontoggled(self):
-        if self.managementRadioButtonPatient.isChecked():
-            self.managementPatientSelector.hide()
-            self.managementPatientSelectorLabel.hide()
-            self.newPatientIdInput.show()
-            self.newPatientIdInputLabel.show()
-            self.createButton.setText("Create this patientId")
-            self.isPossibleCreatePatient()
-        else:
-
-            self.fillSelectorWithDescriptorPatients()
-            self.newPatientIdInput.hide()
-            self.newPatientIdInputLabel.hide()
-            self.managementPatientSelector.show()
-            self.managementPatientSelectorLabel.show()
-            self.createButton.setText("Add this date")
-            self.isPossibleAddDate()
 
     # Function used to download data with information provided
     def onDownloadButton(self):
@@ -516,6 +489,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.checkUploadDifferences()
         self.morphologicalData = myLib.getMorphologicalData(items["_id"]).json()
 
+    # Function used to create the architecture for a new patient or new date, updating descriptors
     def onCreateButton(self):
         collectionPath = self.managementFilepathSelector.directory
         patientId = self.managementPatientSelector.currentText
@@ -564,10 +538,50 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         file.close()
         self.fillSelectorWithPatients()
 
+    # ---------- Radio Buttons ---------- #
+    # Function used to display interface corresponding to the query checked
+    def onRadioButtontoggled(self):
+        self.downloadErrorText.hide()
+        self.fillSelectorWithAttachments()
+        if self.downloadRadioButtonPatientOnly.isChecked():
+            self.downloadDateLabel.hide()
+            self.downloadDate.hide()
+        else:
+            self.downloadDateLabel.show()
+            self.downloadDate.show()
+
+    # Function used to display interface corresponding to the management action checked
+    def onManagementRadioButtontoggled(self):
+        if self.managementRadioButtonPatient.isChecked():
+            self.managementPatientSelector.hide()
+            self.managementPatientSelectorLabel.hide()
+            self.newPatientIdInput.show()
+            self.newPatientIdInputLabel.show()
+            self.createButton.setText("Create this patientId")
+            self.isPossibleCreatePatient()
+        else:
+
+            self.fillSelectorWithDescriptorPatients()
+            self.newPatientIdInput.hide()
+            self.newPatientIdInputLabel.hide()
+            self.managementPatientSelector.show()
+            self.managementPatientSelectorLabel.show()
+            self.createButton.setText("Add this date")
+            self.isPossibleAddDate()
+
+    # ------------- Inputs -------------- #
     # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
         self.connectionButton.enabled = (len(self.emailInput.text) != 0 and len(self.passwordInput.text) != 0)
 
+    # Function used to enable the creation button if path contains a descriptor and is a name is given
+    def isPossibleCreatePatient(self):
+        directoryPath = self.managementFilepathSelector.directory
+        self.createButton.enabled = False
+        if self.newPatientIdInput.text != '' and os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
+            self.createButton.enabled = True
+
+    # ----------- Combo Boxes ----------- #
     # Function used to fill the comboBoxes with morphologicalCollections
     def fillSelectorWithCollections(self):
         self.collections = myLib.getMorphologicalDataCollections().json()
@@ -596,6 +610,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadPatientSelector.model().sort(0)
         self.downloadPatientSelector.setCurrentIndex(0)
 
+    # Function used to fille the comboBox with a list of attachment corresponding to the query results
     def fillSelectorWithDescriptorPatients(self):
         directoryPath = self.managementFilepathSelector.directory
         self.managementPatientSelector.clear()
@@ -609,6 +624,23 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.managementPatientSelector.model().sort(0)
         self.managementPatientSelector.setCurrentIndex(0)
 
+    # Function used to enable creation button if path contains a descriptor and is a patient is chosen
+    def isPossibleAddDate(self):
+        directoryPath = self.managementFilepathSelector.directory
+        self.createButton.enabled = False
+        if self.managementPatientSelector.currentText != 'None' and os.path.exists(
+                os.path.join(directoryPath, '.DBIDescriptor')):
+            self.createButton.enabled = True
+
+    # Function used to enable the download button when everything is ok
+    def onDownloadPatientChosen(self):
+        collectionName = self.downloadCollectionSelector.currentText
+        patientId = self.downloadPatientSelector.currentText
+        if collectionName != "None" and patientId != "None":
+            self.downloadButton.enabled = True
+            self.fillSelectorWithAttachments()
+
+    # ----------- Calendars ----------- #
     # Function used to fill a comboBox with attachments retrieved by queries
     def fillSelectorWithAttachments(self):
         self.downloadAttachmentSelector.clear()
@@ -634,14 +666,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.downloadErrorText.show()
             self.downloadButton.enabled = False
 
-    # Function used to enable the download button when everything is ok
-    def onDownloadPatientChosen(self):
-        collectionName = self.downloadCollectionSelector.currentText
-        patientId = self.downloadPatientSelector.currentText
-        if collectionName != "None" and patientId != "None":
-            self.downloadButton.enabled = True
-            self.fillSelectorWithAttachments()
-
+    # ------ Filepath selectors ------- #
+    # Function used to check differences between local and online files and display a list of new files
     def checkUploadDifferences(self):
         self.newAttachmentsList = []
         self.uploadListView.clear()
@@ -687,25 +713,13 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         else:
             self.uploadButton.enabled = False
 
+    # Function used to chose what signal to connect depending on management action checked
     def onManagementDirectorySelected(self):
         if self.managementRadioButtonPatient.isChecked():
             self.isPossibleCreatePatient()
         else:
             self.fillSelectorWithDescriptorPatients()
             self.isPossibleAddDate()
-
-    def isPossibleCreatePatient(self):
-        directoryPath = self.managementFilepathSelector.directory
-        self.createButton.enabled = False
-        if self.newPatientIdInput.text != '' and os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
-            self.createButton.enabled = True
-
-    def isPossibleAddDate(self):
-        directoryPath = self.managementFilepathSelector.directory
-        self.createButton.enabled = False
-        if self.managementPatientSelector.currentText != 'None' and os.path.exists(
-                os.path.join(directoryPath, '.DBIDescriptor')):
-            self.createButton.enabled = True
 
 
 #
