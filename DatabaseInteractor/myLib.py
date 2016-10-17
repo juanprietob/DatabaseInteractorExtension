@@ -224,7 +224,10 @@ def createMorphologicalData(data):
 def addAttachment(id, filename, data):
     global token, server
     r = requests.put(url = server + 'dcbia/' + str(id) + '/' + str(filename), data=data,
-                        headers={'Authorization': 'Bearer ' + token})
+                        headers={
+                            'Authorization': 'Bearer ' + token,
+                            'Content-Type': 'application/octet-stream'
+                        })
     if "error" not in r.json():
         return r
     else:
@@ -235,8 +238,13 @@ def addAttachment(id, filename, data):
 
 def getAttachment(id, filename, responseType):
     global token, server
-    r = requests.get(url = server + 'dcbia/' + str(id) + '/' + str(filename),
-                        headers={'Authorization': 'Bearer ' + token})
+    r = requests.get(url=server + 'dcbia/' + str(id) + '/' + str(filename),
+                     headers={
+                         'Authorization': 'Bearer ' + token,
+                         'responseType': responseType,
+                         'Content-Type': 'application/octet-stream'
+                     },
+                     stream=True)
     return r
 
 
