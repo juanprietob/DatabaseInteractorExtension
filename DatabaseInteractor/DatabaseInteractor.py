@@ -410,8 +410,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def onDownloadButton(self):
         for items in self.morphologicalData:
             if "_attachments" in items:
-                if items["_attachments"].keys()[0] == self.downloadAttachmentSelector.currentText:
-                    documentId = items["_id"]
+                for attachments in items["_attachments"].keys():
+                    if attachments == self.downloadAttachmentSelector.currentText:
+                        documentId = items["_id"]
         data = myLib.getAttachment(documentId, self.downloadAttachmentSelector.currentText, None).text
         # Write the attachment in a file
         filePath = os.path.join(self.downloadFilepathSelector.directory, self.downloadAttachmentSelector.currentText)
@@ -454,7 +455,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         for items in self.morphologicalData:
             if "_attachments" in items:
                 documentId = items["_id"]
-                attachmentName = items["_attachments"].keys()[0]
+
                 patientId = items["patientId"]
                 date = items["date"]
                 descriptor["items"][patientId][date[:10]] = os.path.join(collectionPath, patientId, date[:10],
@@ -462,16 +463,17 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
                 if not os.path.exists(os.path.join(collectionPath, patientId, date[:10])):
                     os.makedirs(os.path.join(collectionPath, patientId, date[:10]))
-                data = myLib.getAttachment(documentId, attachmentName, None).text
-                # Save the document
-                file = open(os.path.join(collectionPath, patientId, date[:10], '.DBIDescriptor'), 'w+')
-                json.dump(items, file, indent=3, sort_keys=True)
-                file.close()
+                for attachments in items["_attachments"].keys():
+                    data = myLib.getAttachment(documentId, attachments, None).text
+                    # Save the document
+                    file = open(os.path.join(collectionPath, patientId, date[:10], '.DBIDescriptor'), 'w+')
+                    json.dump(items, file, indent=3, sort_keys=True)
+                    file.close()
 
-                # Save the attachment
-                file = open(os.path.join(collectionPath, patientId, date[:10], attachmentName), 'w+')
-                file.write(data)
-                file.close()
+                    # Save the attachment
+                    file = open(os.path.join(collectionPath, patientId, date[:10], attachments), 'w+')
+                    file.write(data)
+                    file.close()
 
         file = open(os.path.join(collectionPath, '.DBIDescriptor'), 'w+')
         json.dump(descriptor, file, indent=3, sort_keys=True)
@@ -694,16 +696,16 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             for items in self.morphologicalData:
                 if items["patientId"] == self.downloadPatientSelector.currentText:
                     if "_attachments" in items:
-                        attachmentName = items["_attachments"].keys()[0]
-                        self.downloadAttachmentSelector.addItem(attachmentName)
+                        for attachmentName in items["_attachments"].keys():
+                            self.downloadAttachmentSelector.addItem(attachmentName)
         else:
             for items in self.morphologicalData:
                 # Check if the date is the same
                 if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(
                         self.downloadDate.selectedDate):
                     if "_attachments" in items:
-                        attachmentName = items["_attachments"].keys()[0]
-                        self.downloadAttachmentSelector.addItem(attachmentName)
+                        for attachmentName in items["_attachments"].keys():
+                            self.downloadAttachmentSelector.addItem(attachmentName)
         if attachmentName == "":
             self.downloadAttachmentSelector.addItem("None")
             self.downloadErrorText.show()
