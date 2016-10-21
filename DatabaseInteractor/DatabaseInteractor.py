@@ -231,6 +231,11 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadFormLayout.addRow(self.uploadButton)
         self.uploadButton.enabled = False
 
+        self.uploadLabel = qt.QLabel("Files successfully uploaded !")
+        self.uploadLabel.setStyleSheet("color: rgb(0, 150, 0);")
+        self.uploadFormLayout.addRow(self.uploadLabel)
+        self.uploadLabel.hide()
+
         # ----------------------------------------------- #
         # - Definition of management collapsible button - #
         # ----------------------------------------------- #
@@ -501,11 +506,11 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                                              '.DBIDescriptor'), 'w+')
                     json.dump(data, file, indent=3, sort_keys=True)
                     file.close()
-        self.clearCheckBoxList()
         # Update morphologicalData list
         for items in self.collections:
             if items["name"] == self.downloadCollectionSelector.currentText:
                 self.morphologicalData = myLib.getMorphologicalData(items["_id"]).json()
+        self.uploadLabel.show()
 
     # Function used to create the architecture for a new patient or new date, updating descriptors
     def onCreateButton(self):
@@ -661,6 +666,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     # Function used to show in a list the new documents for a patient
     def onUploadPatientChosen(self):
         self.uploadDateSelector.clear()
+        self.uploadLabel.hide()
         if self.uploadPatientSelector.currentText != "" and self.uploadPatientSelector.currentText != "None":
             for dates in self.attachmentsList[self.uploadPatientSelector.currentText].keys():
                 self.uploadDateSelector.addItem(dates)
