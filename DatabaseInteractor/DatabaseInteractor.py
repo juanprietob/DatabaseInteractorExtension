@@ -42,6 +42,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.connected = False
         self.collections = dict()
         self.morphologicalData = dict()
+        self.attachmentsList = {}
         self.tokenFilePath = os.path.join(slicer.app.temporaryPath, 'user.slicer_token')
         self.serverFilePath = os.path.join(slicer.app.temporaryPath, 'user.slicer_server')
         self.moduleName = 'DatabaseInteractor'
@@ -200,9 +201,21 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.uploadFilepathSelector.toolTip = "Choose the path to the folder where you saved patient files."
         self.uploadFormLayout.addRow(qt.QLabel("Choose collection folder: "), self.uploadFilepathSelector)
 
-        # ListView of the differences between local folder and online database
-        self.uploadListView = qt.QListWidget()
-        self.uploadFormLayout.addRow("Modified files: ", self.uploadListView)
+        # Patient Selector
+        self.uploadPatientSelector = qt.QComboBox()
+        self.uploadPatientSelector.addItem("None")
+        self.uploadFormLayout.addRow("Choose a patient: ", self.uploadPatientSelector)
+
+        # Date Selector
+        self.uploadDateSelector = qt.QComboBox()
+        self.uploadDateSelector.addItem("None")
+        self.uploadFormLayout.addRow("Choose a date: ", self.uploadDateSelector)
+
+        # Layout of the differences between local folder and online database
+        self.uploadListLayout = qt.QVBoxLayout()
+        self.uploadFormLayout.addRow("Files to upload: ", self.uploadListLayout)
+        self.noneLabel = qt.QLabel("None")
+        self.uploadListLayout.addWidget(self.noneLabel)
 
         # Volume selector
         # self.modelSelector = slicer.qMRMLNodeComboBox()
@@ -315,13 +328,15 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # ComboBoxes
         self.downloadCollectionSelector.connect('currentIndexChanged(const QString&)', self.fillSelectorWithPatients)
         self.downloadPatientSelector.connect('currentIndexChanged(const QString&)', self.onDownloadPatientChosen)
+        self.uploadPatientSelector.connect('currentIndexChanged(const QString&)', self.onUploadPatientChosen)
+        self.uploadDateSelector.connect('currentIndexChanged(const QString&)', self.onUploadDateChosen)
         self.managementPatientSelector.connect('currentIndexChanged(const QString&)', self.isPossibleAddDate)
 
         # Calendar
         self.downloadDate.connect('clicked(const QDate&)', self.fillSelectorWithAttachments)
 
         # FilePath selectors
-        self.uploadFilepathSelector.connect('directorySelected(const QString &)', self.checkUploadDifferences)
+        self.uploadFilepathSelector.connect('directorySelected(const QString &)', self.createFilesDictionary)
         self.managementFilepathSelector.connect('directorySelected(const QString &)',
                                                 self.onManagementDirectorySelected)
 
@@ -466,29 +481,29 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to upload a data to the correct patient
     def onUploadButton(self):
-        # Add new attachments to patient
-        for path in self.newAttachmentsList:
-            attachmentName = os.path.split(path)[1]
-            patientId = os.path.split((os.path.split(path)[0]))[0]
-            date = os.path.split((os.path.split(path)[0]))[1]
-            for items in self.morphologicalData:
-                if items["patientId"] == patientId and items["date"][:10] == date:
-                    documentId = items["_id"]
-                    data = open(os.path.join(self.uploadFilepathSelector.directory, path), 'r')
-                    myLib.addAttachment(documentId, attachmentName, data)
-
+        self.checkBoxesChecked()
+        for patient in self.checkedList.keys():
+            for date in self.checkedList[patient].keys():
+                for attachment in self.checkedList[patient][date]["items"]:
+                    # Add new attachments to patient
+                    collection = self.uploadFilepathSelector.directory
+                    path = os.path.join(collection,patient,date,attachment)
+                    for items in self.morphologicalData:
+                        if items["patientId"] == patient and items["date"][:10] == date:
+                            documentId = items["_id"]
+                            data = open(path, 'r')
+                            myLib.addAttachment(documentId, attachment, data)
                     # Update descriptor
-                    for items in myLib.getMorphologicalDataByPatientId(patientId).json():
-                        if "_attachments" in items:
-                            for names in items["_attachments"].keys():
-                                if names == attachmentName:
-                                    file = open(os.path.join(self.uploadFilepathSelector.directory, patientId, date,
-                                                             '.DBIDescriptor'), 'w+')
-                                    json.dump(items, file, indent=3, sort_keys=True)
-                                    file.close()
-        self.newAttachmentsList = []
-        self.checkUploadDifferences()
-        self.morphologicalData = myLib.getMorphologicalData(items["_id"]).json()
+                    data = myLib.getMorphologicalDataByPatientId(patient).json()
+                    file = open(os.path.join(self.uploadFilepathSelector.directory, patient, date,
+                                             '.DBIDescriptor'), 'w+')
+                    json.dump(data, file, indent=3, sort_keys=True)
+                    file.close()
+        self.clearCheckBoxList()
+        # Update morphologicalData list
+        for items in self.collections:
+            if items["name"] == self.downloadCollectionSelector.currentText:
+                self.morphologicalData = myLib.getMorphologicalData(items["_id"]).json()
 
     # Function used to create the architecture for a new patient or new date, updating descriptors
     def onCreateButton(self):
@@ -641,6 +656,33 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.downloadButton.enabled = True
             self.fillSelectorWithAttachments()
 
+    # Function used to show in a list the new documents for a patient
+    def onUploadPatientChosen(self):
+        self.uploadDateSelector.clear()
+        if self.uploadPatientSelector.currentText != "" and self.uploadPatientSelector.currentText != "None":
+            for dates in self.attachmentsList[self.uploadPatientSelector.currentText].keys():
+                self.uploadDateSelector.addItem(dates)
+        if self.uploadDateSelector.count == 0:
+            self.uploadDateSelector.addItem("None")
+
+    # Function used to display the checkboxes corresponding on the patient and timepoint selected
+    def onUploadDateChosen(self):
+        self.clearCheckBoxList()
+        # Display new attachments in the layout
+        if self.uploadDateSelector.currentText != "" and self.uploadDateSelector.currentText != "None":
+            timepoint = self.attachmentsList[self.uploadPatientSelector.currentText][self.uploadDateSelector.currentText]
+            for items in timepoint["items"]:
+                item = qt.QCheckBox(items)
+                self.uploadListLayout.addWidget(item)
+                timepoint["checkbox"][items] = item
+        if self.uploadListLayout.count() != 0:
+            self.uploadButton.enabled = True
+        else:
+            self.uploadButton.enabled = False
+            self.uploadListLayout.addWidget(self.noneLabel)
+            self.noneLabel.setText("None")
+
+
     # ----------- Calendars ----------- #
     # Function used to fill a comboBox with attachments retrieved by queries
     def fillSelectorWithAttachments(self):
@@ -668,51 +710,42 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.downloadButton.enabled = False
 
     # ------ Filepath selectors ------- #
-    # Function used to check differences between local and online files and display a list of new files
-    def checkUploadDifferences(self):
-        self.newAttachmentsList = []
-        self.uploadListView.clear()
-
+    # Function used to create a dictionary corresponding to the collection architecture
+    def createFilesDictionary(self):
         directoryPath = self.uploadFilepathSelector.directory
-        if os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
-            file = open(os.path.join(directoryPath, '.DBIDescriptor'), 'r')
-            collectionDescriptor = json.load(file)
-            patientList = collectionDescriptor["items"].keys()
-        else:
-            return -1
-
-        # Check for new data for already existing patients
+        # Check if the directory selected is a valid collection
+        if not os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
+            self.clearCheckBoxList()
+            self.attachmentsList = {}
+            self.uploadPatientSelector.clear()
+            self.uploadPatientSelector.addItem("None")
+            self.uploadDateSelector.clear()
+            self.uploadDateSelector.addItem("None")
+            return
+        self.attachmentsList = {}
         # Iterate over patients
         for folderName in os.listdir(directoryPath):
             if folderName[0] != '.':
+                self.attachmentsList[folderName] = {}
                 # Iterate over dates
                 for dates in os.listdir(os.path.join(directoryPath, folderName)):
                     if dates[0] != '.':
+                        self.attachmentsList[folderName][dates] = {}
+                        self.attachmentsList[folderName][dates]["items"] = []
+                        self.attachmentsList[folderName][dates]["checkbox"] = {}
+                        # Fill with attachment names
+                        for files in os.listdir(os.path.join(directoryPath, folderName, dates)):
+                            if files[0] != ".":
+                                self.attachmentsList[folderName][dates]["items"].append(files)
 
-                        # Create a list of attachments in file
-                        localAttachments = os.listdir(os.path.join(directoryPath, folderName, dates))
-                        if '.DBIDescriptor' in localAttachments:
-                            localAttachments.remove('.DBIDescriptor')
-
-                        # Create a list of online attachments
-                        onlineAttachment = []
-                        if os.path.exists(os.path.join(directoryPath, folderName, dates, '.DBIDescriptor')):
-                            file = open(os.path.join(directoryPath, folderName, dates, '.DBIDescriptor'), 'r')
-                            attachmentDescriptor = json.load(file)
-                            if "_attachments" in attachmentDescriptor:
-                                onlineAttachment = attachmentDescriptor["_attachments"].keys()
-
-                        # Check if attachment is new
-                        for items in localAttachments:
-                            if items not in onlineAttachment:
-                                self.newAttachmentsList.append(os.path.join(folderName, dates, items))
-
-        # Display new attachments in the ListWidget
-        self.uploadListView.addItems(self.newAttachmentsList)
-        if self.uploadListView.count != 0:
+        # Fill the patient selector comboBox with patients with changes
+        self.uploadPatientSelector.clear()
+        self.uploadPatientSelector.addItems(self.attachmentsList.keys())
+        if self.uploadPatientSelector.count != 0:
             self.uploadButton.enabled = True
         else:
             self.uploadButton.enabled = False
+            self.uploadPatientSelector.addItem("None")
 
     # Function used to chose what signal to connect depending on management action checked
     def onManagementDirectorySelected(self):
@@ -722,6 +755,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.fillSelectorWithDescriptorPatients()
             self.isPossibleAddDate()
 
+    # ---------------------------------------------------- #
+    # ------------------ Other functions ----------------- #
+    # ---------------------------------------------------- #
+    # Function used to check the downloaded file extension in order to load it with the correct loader
     def fileLoader(self, filepath):
         # Documentation :
         # http://wiki.slicer.org/slicerWiki/index.php/Documentation/4.5/SlicerApplication/SupportedDataFormat
@@ -733,11 +770,12 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         transformExtensions = ["tfm","mat","txt","nrrd","nhdr","mha","mhd","nii"]
         volumeRenderingExtensions = ["vp","txt"]
         colorsExtensions = ["ctbl","txt"]
+        extension = ""
 
         if filepath.rfind(".") != -1:
             extension = filepath[filepath.rfind(".") + 1:]
             if extension == "gz":
-                filepath[filepath[:filepath.rfind(".")].rfind(".") + 1:]
+                extension = filepath[filepath[:filepath.rfind(".")].rfind(".") + 1:]
 
         if extension in sceneExtensions:
             slicer.util.loadScene(filepath)
@@ -756,7 +794,29 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         if extension in colorsExtensions:
             slicer.util.loadColorTable(filepath)
 
+    # Function used to clear the layout which displays the checkboxes for upload
+    def clearCheckBoxList(self):
+        for patient in self.attachmentsList.keys():
+            for date in self.attachmentsList[patient].keys():
+                for items in self.attachmentsList[patient][date]["checkbox"].keys():
+                    self.uploadListLayout.removeWidget(self.attachmentsList[patient][date]["checkbox"][items])
+                    self.attachmentsList[patient][date]["checkbox"][items].delete()
+                self.attachmentsList[patient][date]["checkbox"] = {}
 
+        self.noneLabel.setText("")
+        self.uploadListLayout.removeWidget(self.noneLabel)
+
+    # Function used to get in a dictionnary attachments selected to be uploaded
+    def checkBoxesChecked(self):
+        self.checkedList = {}
+        for patient in self.attachmentsList.keys():
+            self.checkedList[patient] = {}
+            for date in self.attachmentsList[patient].keys():
+                self.checkedList[patient][date] = {}
+                self.checkedList[patient][date]["items"] = []
+                for items in self.attachmentsList[patient][date]["checkbox"].keys():
+                    if str(self.attachmentsList[patient][date]["checkbox"][items].checkState()) == "2" :
+                        self.checkedList[patient][date]["items"].append(items)
 #
 # DatabaseInteractorLogic
 #
