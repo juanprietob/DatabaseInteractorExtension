@@ -171,7 +171,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         # Clickable dates formats
         self.brushBlue = qt.QBrush()
-        self.brushBlue.setColor(qt.QColor(125,175,235))
+        self.brushBlue.setColor(qt.QColor(107,171,200))
         self.checkableDateFormat = qt.QTextCharFormat()
         self.checkableDateFormat.setBackground(self.brushBlue)
         self.checkableDateFormat.setFontWeight(qt.QFont.Bold)
@@ -843,6 +843,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     if str(self.attachmentsList[patient][date]["checkbox"][items].checkState()) == "2" :
                         self.checkedList[patient][date]["items"].append(items)
 
+    # Function used to color the dates which contain one or multiple attachments for a given patientId
     def highlightDates(self):
         for items in self.morphologicalData:
             if items["patientId"] == self.downloadPatientSelector.currentText:
