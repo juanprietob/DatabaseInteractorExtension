@@ -169,6 +169,18 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadDateLabel.hide()
         self.downloadDate.hide()
 
+        # Clickable dates formats
+        self.brushBlue = qt.QBrush()
+        self.brushBlue.setColor(qt.QColor(125,175,235))
+        self.checkableDateFormat = qt.QTextCharFormat()
+        self.checkableDateFormat.setBackground(self.brushBlue)
+        self.checkableDateFormat.setFontWeight(qt.QFont.Bold)
+        self.normalBrush = qt.QBrush()
+        self.normalBrush.setColor(qt.QColor(255, 255, 255))
+        self.normalDateFormat = qt.QTextCharFormat()
+        self.normalDateFormat.setBackground(self.normalBrush)
+        self.normalDateFormat.setFontWeight(qt.QFont.Normal)
+
         # Attachment selector
         self.downloadAttachmentSelector = qt.QComboBox()
         self.downloadAttachmentSelector.addItem("None")
@@ -616,6 +628,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to fill the comboBox with patientId corresponding to the collection selected
     def fillSelectorWithPatients(self):
+        for items in self.morphologicalData:
+            date = items["date"]
+            self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
+                                                    self.normalDateFormat)
         text = self.downloadCollectionSelector.currentText
         self.downloadButton.enabled = text
         if text != "None":
@@ -662,6 +678,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         if collectionName != "None" and patientId != "None":
             self.downloadButton.enabled = True
             self.fillSelectorWithAttachments()
+        self.highlightDates()
 
     # Function used to show in a list the new documents for a patient
     def onUploadPatientChosen(self):
@@ -825,6 +842,17 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 for items in self.attachmentsList[patient][date]["checkbox"].keys():
                     if str(self.attachmentsList[patient][date]["checkbox"][items].checkState()) == "2" :
                         self.checkedList[patient][date]["items"].append(items)
+
+    def highlightDates(self):
+        for items in self.morphologicalData:
+            if items["patientId"] == self.downloadPatientSelector.currentText:
+                date = items["date"]
+                self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]),int(date[5:7]),int(date[8:10])),self.checkableDateFormat)
+            else:
+                date = items["date"]
+                self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
+                                                    self.normalDateFormat)
+
 #
 # DatabaseInteractorLogic
 #
