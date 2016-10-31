@@ -4,10 +4,13 @@ set(MODULE_NAME DatabaseInteractor)
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
+  myLib.py
   )
 
 set(MODULE_PYTHON_RESOURCES
   Resources/Icons/${MODULE_NAME}.png
+  Resources/Icons/ArrowLeft.png
+  Resources/Icons/ArrowRight.png
   )
 
 #-----------------------------------------------------------------------------
