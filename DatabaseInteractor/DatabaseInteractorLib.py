@@ -309,7 +309,7 @@ def disconnect():
 def getUserScope():
     r = requests.get(url = server + 'auth/user',
                         headers={'Authorization': 'Bearer ' + token})
-    return len(r.json()["scope"])
+    return r.json()["scope"]
 
 def getUserEmail():
     r = requests.get(url=server + 'auth/user',

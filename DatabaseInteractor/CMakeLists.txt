@@ -4,7 +4,7 @@ set(MODULE_NAME DatabaseInteractor)
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
-  myLib.py
+  ${MODULE_NAME}Lib.py
   )
 
 set(MODULE_PYTHON_RESOURCES

@@ -372,7 +372,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 self.fillSelectorWithCollections()
                 self.downloadCollapsibleButton.show()
                 self.uploadCollapsibleButton.show()
-                if DatabaseInteractorLib.getUserScope() > 2:
+                if "admin" in DatabaseInteractorLib.getUserScope():
                     self.managementCollapsibleButton.show()
 
             file.close()
@@ -385,7 +385,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def onConnectionButton(self):
         DatabaseInteractorLib.setServer(self.serverInput.text, self.serverFilePath)
         token, error = DatabaseInteractorLib.connect(self.emailInput.text, self.passwordInput.text)
-        if token != -1 and DatabaseInteractorLib.getUserScope() >= 2:
+        userScope = DatabaseInteractorLib.getUserScope()
+        if token != -1 and (len(userScope) != 1 or "default" not in userScope):
             # Write the token in a temporary file
             file = open(self.tokenFilePath, 'w+')
             file.write(token)
@@ -398,7 +399,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.downloadCollapsibleButton.show()
             self.uploadCollapsibleButton.show()
             self.managementCollapsibleButton.show()
-            if DatabaseInteractorLib.getUserScope() < 3:
+            if "admin" not in userScope:
                 self.managementCollapsibleButton.hide()
         elif token == -1:
             self.errorLoginText.text = error
