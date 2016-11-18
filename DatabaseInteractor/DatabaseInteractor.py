@@ -638,7 +638,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     # Function used to fill the comboBox with patientId corresponding to the collection selected
     def fillSelectorWithPatients(self):
         for items in self.morphologicalData:
-            date = items["date"]
+            if "date" in items:
+                date = items["date"]
+            else:
+                date = "NoDate"
             self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
                                                     self.normalDateFormat)
         text = self.downloadCollectionSelector.currentText
@@ -733,6 +736,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         else:
             for items in self.morphologicalData:
                 # Check if the date is the same
+                if not "date" in items:
+                    items["date"] = "NoDate"
                 if items["patientId"] == self.downloadPatientSelector.currentText and items["date"][:10] == str(
                         self.downloadDate.selectedDate):
                     if "_attachments" in items:
