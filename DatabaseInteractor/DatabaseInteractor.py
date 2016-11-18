@@ -187,7 +187,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadFormLayout.addRow("Choose an attachment: ", self.downloadAttachmentSelector)
 
         # Error download Label
-        self.downloadErrorText = qt.QLabel("No file found for this date !")
+        self.downloadErrorText = qt.QLabel("No file found for this patientId !")
         self.downloadErrorText.setStyleSheet("color: rgb(255, 0, 0);")
         self.downloadFormLayout.addWidget(self.downloadErrorText)
         self.downloadErrorText.hide()
@@ -385,22 +385,23 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     def onConnectionButton(self):
         DatabaseInteractorLib.setServer(self.serverInput.text, self.serverFilePath)
         token, error = DatabaseInteractorLib.connect(self.emailInput.text, self.passwordInput.text)
-        userScope = DatabaseInteractorLib.getUserScope()
-        if token != -1 and (len(userScope) != 1 or "default" not in userScope):
-            # Write the token in a temporary file
-            file = open(self.tokenFilePath, 'w+')
-            file.write(token)
-            file.close()
-            self.connected = True
-            self.connectionGroupBox.hide()
-            self.connectionButton.hide()
-            self.disconnectionButton.show()
-            self.fillSelectorWithCollections()
-            self.downloadCollapsibleButton.show()
-            self.uploadCollapsibleButton.show()
-            self.managementCollapsibleButton.show()
-            if "admin" not in userScope:
-                self.managementCollapsibleButton.hide()
+        if token != -1:
+            userScope = DatabaseInteractorLib.getUserScope()
+            if len(userScope) != 1 or "default" not in userScope:
+                # Write the token in a temporary file
+                file = open(self.tokenFilePath, 'w+')
+                file.write(token)
+                file.close()
+                self.connected = True
+                self.connectionGroupBox.hide()
+                self.connectionButton.hide()
+                self.disconnectionButton.show()
+                self.fillSelectorWithCollections()
+                self.downloadCollapsibleButton.show()
+                self.uploadCollapsibleButton.show()
+                self.managementCollapsibleButton.show()
+                if "admin" not in userScope:
+                    self.managementCollapsibleButton.hide()
         elif token == -1:
             self.errorLoginText.text = error
             self.errorLoginText.show()
@@ -475,7 +476,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 documentId = items["_id"]
 
                 patientId = items["patientId"]
-                date = items["date"]
+                if "date" in items:
+                    date = items["date"]
+                else:
+                    date = "NoDate"
                 descriptor["items"][patientId][date[:10]] = os.path.join(collectionPath, patientId, date[:10],
                                                                          ".DBIDescriptor")
 
@@ -509,6 +513,8 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     collection = self.uploadFilepathSelector.directory
                     path = os.path.join(collection,patient,date,attachment)
                     for items in self.morphologicalData:
+                        if not "date" in items:
+                            items["date"] = "NoDate"
                         if items["patientId"] == patient and items["date"][:10] == date:
                             documentId = items["_id"]
                             data = open(path, 'r')
@@ -580,9 +586,11 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         self.downloadErrorText.hide()
         self.fillSelectorWithAttachments()
         if self.downloadRadioButtonPatientOnly.isChecked():
+            self.downloadErrorText.text = "No file found for this patientId !"
             self.downloadDateLabel.hide()
             self.downloadDate.hide()
         else:
+            self.downloadErrorText.text = "No file found for this date !"
             self.downloadDateLabel.show()
             self.downloadDate.show()
 
@@ -748,6 +756,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             self.uploadDateSelector.clear()
             self.uploadDateSelector.addItem("None")
             return
+        self.clearCheckBoxList()
         self.attachmentsList = {}
         # Iterate over patients
         for folderName in os.listdir(directoryPath):
@@ -847,13 +856,15 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     # Function used to color the dates which contain one or multiple attachments for a given patientId
     def highlightDates(self):
         for items in self.morphologicalData:
-            if items["patientId"] == self.downloadPatientSelector.currentText:
+            if "date" in items:
                 date = items["date"]
-                self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]),int(date[5:7]),int(date[8:10])),self.checkableDateFormat)
-            else:
-                date = items["date"]
-                self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
-                                                    self.normalDateFormat)
+                if items["patientId"] == self.downloadPatientSelector.currentText:
+                    date = items["date"]
+                    self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]),int(date[5:7]),int(date[8:10])),
+                                                        self.checkableDateFormat)
+                else:
+                    self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
+                                                        self.normalDateFormat)
 
 #
 # DatabaseInteractorLogic
