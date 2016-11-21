@@ -432,11 +432,13 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 for attachments in items["_attachments"].keys():
                     if attachments == self.downloadAttachmentSelector.currentText:
                         documentId = items["_id"]
-        data = DatabaseInteractorLib.getAttachment(documentId, self.downloadAttachmentSelector.currentText, None).text
+        data = DatabaseInteractorLib.getAttachment(documentId, self.downloadAttachmentSelector.currentText, None)
         # Write the attachment in a file
         filePath = os.path.join(self.downloadFilepathSelector.directory, self.downloadAttachmentSelector.currentText)
-        file = open(filePath, 'w+')
-        file.write(data)
+        if data != -1:
+            with open(filePath, 'wb+') as file:
+                for chunk in data.iter_content(2048):
+                    file.write(chunk)
         file.close()
 
         # Load the file
@@ -493,8 +495,11 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                     file.close()
 
                     # Save the attachment
-                    file = open(os.path.join(collectionPath, patientId, date[:10], attachments), 'w+')
-                    file.write(data)
+                    if data != -1:
+                        filePath = os.path.join(collectionPath, patientId, date[:10], attachments)
+                        with open(filePath, 'wb+') as file:
+                            for chunk in data.iter_content(2048):
+                                file.write(chunk)
                     file.close()
 
         file = open(os.path.join(collectionPath, '.DBIDescriptor'), 'w+')
@@ -640,10 +645,12 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         for items in self.morphologicalData:
             if "date" in items:
                 date = items["date"]
+                self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
+                                                    self.normalDateFormat)
             else:
                 date = "NoDate"
-            self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
-                                                    self.normalDateFormat)
+
+
         text = self.downloadCollectionSelector.currentText
         self.downloadButton.enabled = text
         if text != "None":
@@ -815,8 +822,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         if filepath.rfind(".") != -1:
             extension = filepath[filepath.rfind(".") + 1:]
             if extension == "gz":
-                extension = filepath[filepath[:filepath.rfind(".")].rfind(".") + 1:]
-
+                extension = filepath[filepath[:filepath.rfind(".")].rfind(".") + 1:filepath.rfind(".")]
         if extension in sceneExtensions:
             slicer.util.loadScene(filepath)
         if extension in volumeExtensions:
