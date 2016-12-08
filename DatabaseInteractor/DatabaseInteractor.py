@@ -1,19 +1,17 @@
-import os, sys
-import unittest
-import vtk, qt, ctk, slicer
+from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-import logging
-import DatabaseInteractorLib
 import json
+import logging
+import os
 
 
 #
 # DatabaseInteractor
 #
 
-class DatabaseInteractor(ScriptedLoadableModule):
+class DatabaseInteractor(slicer.ScriptedLoadableModule.ScriptedLoadableModule):
     def __init__(self, parent):
-        ScriptedLoadableModule.__init__(self, parent)
+        slicer.ScriptedLoadableModule.ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = "Database Interactor"
         self.parent.categories = ["Web System Tools"]
         self.parent.dependencies = []
@@ -31,13 +29,16 @@ class DatabaseInteractor(ScriptedLoadableModule):
 # DatabaseInteractorWidget
 #
 
-class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
+class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableModuleWidget):
     def setup(self):
-        ScriptedLoadableModuleWidget.setup(self)
+        slicer.ScriptedLoadableModule.ScriptedLoadableModuleWidget.setup(self)
 
         # ---------------------------------------------------------------- #
         # ------------------------ Global variables ---------------------- #
         # ---------------------------------------------------------------- #
+        import DatabaseInteractorLib
+#        reload(DatabaseInteractorLib)
+        self.DatabaseInteractorLib = DatabaseInteractorLib.DatabaseInteractorLib()
 
         self.connected = False
         self.collections = dict()
@@ -361,10 +362,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         if os.path.exists(self.tokenFilePath):
             file = open(self.tokenFilePath, 'r')
             first_line = file.readline()
-            DatabaseInteractorLib.getServer(self.serverFilePath)
+            self.DatabaseInteractorLib.getServer(self.serverFilePath)
             if first_line != "":
                 # self.token = first_line
-                DatabaseInteractorLib.token = first_line
+                self.DatabaseInteractorLib.token = first_line
                 self.connected = True
                 self.connectionGroupBox.hide()
                 self.connectionButton.hide()
@@ -372,7 +373,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 self.fillSelectorWithCollections()
                 self.downloadCollapsibleButton.show()
                 self.uploadCollapsibleButton.show()
-                if "admin" in DatabaseInteractorLib.getUserScope():
+                if "admin" in self.DatabaseInteractorLib.getUserScope():
                     self.managementCollapsibleButton.show()
 
             file.close()
@@ -383,10 +384,10 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     # ------------ Buttons -------------- #
     # Function used to connect user to the database and store token in a file
     def onConnectionButton(self):
-        DatabaseInteractorLib.setServer(self.serverInput.text, self.serverFilePath)
-        token, error = DatabaseInteractorLib.connect(self.emailInput.text, self.passwordInput.text)
+        self.DatabaseInteractorLib.setServer(self.serverInput.text, self.serverFilePath)
+        token, error = self.DatabaseInteractorLib.connect(self.emailInput.text, self.passwordInput.text)
         if token != -1:
-            userScope = DatabaseInteractorLib.getUserScope()
+            userScope = self.DatabaseInteractorLib.getUserScope()
             if len(userScope) != 1 or "default" not in userScope:
                 # Write the token in a temporary file
                 file = open(self.tokenFilePath, 'w+')
@@ -411,7 +412,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
     # Function used to disconnect user to the database
     def onDisconnectionButton(self):
-        DatabaseInteractorLib.disconnect()
+        self.DatabaseInteractorLib.disconnect()
         self.connected = False
         self.passwordInput.text = ''
         self.connectionGroupBox.show()
@@ -432,7 +433,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 for attachments in items["_attachments"].keys():
                     if attachments == self.downloadAttachmentSelector.currentText:
                         documentId = items["_id"]
-        data = DatabaseInteractorLib.getAttachment(documentId, self.downloadAttachmentSelector.currentText, None)
+        data = self.DatabaseInteractorLib.getAttachment(documentId, self.downloadAttachmentSelector.currentText, None)
         # Write the attachment in a file
         filePath = os.path.join(self.downloadFilepathSelector.directory, self.downloadAttachmentSelector.currentText)
         if data != -1:
@@ -455,7 +456,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         index = 0
 
         # Write collection document
-        for items in DatabaseInteractorLib.getMorphologicalDataCollections().json():
+        for items in self.DatabaseInteractorLib.getMorphologicalDataCollections().json():
             if items["name"] == self.downloadCollectionSelector.currentText:
                 collectionId = items["_id"]
         descriptor = {
@@ -488,7 +489,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                 if not os.path.exists(os.path.join(collectionPath, patientId, date[:10])):
                     os.makedirs(os.path.join(collectionPath, patientId, date[:10]))
                 for attachments in items["_attachments"].keys():
-                    data = DatabaseInteractorLib.getAttachment(documentId, attachments, None).text
+                    data = self.DatabaseInteractorLib.getAttachment(documentId, attachments, None).text
                     # Save the document
                     file = open(os.path.join(collectionPath, patientId, date[:10], '.DBIDescriptor'), 'w+')
                     json.dump(items, file, indent=3, sort_keys=True)
@@ -523,9 +524,9 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
                         if items["patientId"] == patient and items["date"][:10] == date:
                             documentId = items["_id"]
                             data = open(path, 'r')
-                            DatabaseInteractorLib.addAttachment(documentId, attachment, data)
+                            self.DatabaseInteractorLib.addAttachment(documentId, attachment, data)
                     # Update descriptor
-                    data = DatabaseInteractorLib.getMorphologicalDataByPatientId(patient).json()
+                    data = self.DatabaseInteractorLib.getMorphologicalDataByPatientId(patient).json()
                     file = open(os.path.join(self.uploadFilepathSelector.directory, patient, date,
                                              '.DBIDescriptor'), 'w+')
                     json.dump(data, file, indent=3, sort_keys=True)
@@ -533,7 +534,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
         # Update morphologicalData list
         for items in self.collections:
             if items["name"] == self.downloadCollectionSelector.currentText:
-                self.morphologicalData = DatabaseInteractorLib.getMorphologicalData(items["_id"]).json()
+                self.morphologicalData = self.DatabaseInteractorLib.getMorphologicalData(items["_id"]).json()
         self.uploadLabel.show()
 
     # Function used to create the architecture for a new patient or new date, updating descriptors
@@ -548,26 +549,26 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             patientId = self.newPatientIdInput.text
 
         # Add to database
-        owner = DatabaseInteractorLib.getUserEmail()
+        owner = self.DatabaseInteractorLib.getUserEmail()
         data = {
             "patientId": patientId,
             "date": date,
             "owners": [{"user": owner}],
             "type": "morphologicalData",
         }
-        docId = DatabaseInteractorLib.createMorphologicalData(json.dumps(data)).json()["id"]
+        docId = self.DatabaseInteractorLib.createMorphologicalData(json.dumps(data)).json()["id"]
         for items in self.collections:
             if items["name"] == collection:
-                collectionJson = DatabaseInteractorLib.getMorphologicalDataCollection(items["_id"]).json()
+                collectionJson = self.DatabaseInteractorLib.getMorphologicalDataCollection(items["_id"]).json()
         collectionJson["items"].append({'_id': docId})
-        DatabaseInteractorLib.updateMorphologicalDataCollection(json.dumps(collectionJson))
+        self.DatabaseInteractorLib.updateMorphologicalDataCollection(json.dumps(collectionJson))
 
         # Create date folder
         if not os.path.exists(os.path.join(collectionPath, patientId, date)):
             os.makedirs(os.path.join(collectionPath, patientId, date))
 
         # Write descriptor
-        for items in DatabaseInteractorLib.getMorphologicalData(collectionJson["_id"]).json():
+        for items in self.DatabaseInteractorLib.getMorphologicalData(collectionJson["_id"]).json():
             if items["_id"] == docId:
                 file = open(os.path.join(collectionPath, patientId, date, '.DBIDescriptor'), 'w+')
                 json.dump(items, file, indent=3, sort_keys=True)
@@ -633,7 +634,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
     # ----------- Combo Boxes ----------- #
     # Function used to fill the comboBoxes with morphologicalCollections
     def fillSelectorWithCollections(self):
-        self.collections = DatabaseInteractorLib.getMorphologicalDataCollections().json()
+        self.collections = self.DatabaseInteractorLib.getMorphologicalDataCollections().json()
         self.downloadCollectionSelector.clear()
         for items in self.collections:
             self.downloadCollectionSelector.addItem(items["name"])
@@ -658,7 +659,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
             # Get the patientIds in the selected collection
             for items in self.collections:
                 if items["name"] == text:
-                    self.morphologicalData = DatabaseInteractorLib.getMorphologicalData(items["_id"]).json()
+                    self.morphologicalData = self.DatabaseInteractorLib.getMorphologicalData(items["_id"]).json()
             self.downloadPatientSelector.clear()
             for items in self.morphologicalData:
                 if self.downloadPatientSelector.findText(items["patientId"]) == -1:
@@ -881,7 +882,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 # DatabaseInteractorLogic
 #
 
-class DatabaseInteractorLogic(ScriptedLoadableModuleLogic):
+class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModuleLogic):
     """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -892,14 +893,16 @@ class DatabaseInteractorLogic(ScriptedLoadableModuleLogic):
   """
 
     def run(self, email, password):
-        return DatabaseInteractorLib.connect(email, password)
+        return self.DatabaseInteractorLib.connect(email, password)
 
 
-class DatabaseInteractorTest(ScriptedLoadableModuleTest):
+class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModuleTest):
     # Reset the scene
     def setUp(self):
+        self.widget = slicer.modules.DatabaseInteractorWidget
+        self.DatabaseInteractorLib = self.widget.DatabaseInteractorLib
         slicer.mrmlScene.Clear(0)
-        DatabaseInteractorLib.disconnect()
+        self.DatabaseInteractorLib.disconnect()
 
     # Run the tests
     def runTest(self):
@@ -937,8 +940,8 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         user = 'clement.mirabel@gmail.com'
         password = 'Password1234'
         self.delayDisplay('Attempting to connect to %s.' % (server))
-        DatabaseInteractorLib.setServer(server, slicer.app.temporaryPath + '/user.slicer_server')
-        token,error = DatabaseInteractorLib.connect(user,password)
+        self.DatabaseInteractorLib.setServer(server, slicer.app.temporaryPath + '/user.slicer_server')
+        token,error = self.DatabaseInteractorLib.connect(user,password)
         if token == -1:
             print("Connection Failed : " + error)
             return False
@@ -952,7 +955,7 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         data = {"items": "[]",
                 "type": "morphologicalDataCollection",
                 "name": "CollectionTest"}
-        rep = DatabaseInteractorLib.createMorphologicalDataCollection(data)
+        rep = self.DatabaseInteractorLib.createMorphologicalDataCollection(data)
         if rep == -1:
             print("Collection creation Failed!")
             return False
@@ -963,7 +966,7 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         # ---------------------------------------------------------------- #
         # ------------------ Getting the test collection ----------------- #
         # ---------------------------------------------------------------- #
-        rep = DatabaseInteractorLib.getMorphologicalDataCollections()
+        rep = self.DatabaseInteractorLib.getMorphologicalDataCollections()
         for items in rep.json():
             if items["name"]=="CollectionTest":
                 self.collectionTestId = items["_id"]
@@ -977,14 +980,14 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         # ---------------------- Creating a patient ---------------------- #
         # ---------------------------------------------------------------- #
         data = {"type": "morphologicalData", "patientId": "PatientTest"}
-        rep = DatabaseInteractorLib.createMorphologicalData(data)
+        rep = self.DatabaseInteractorLib.createMorphologicalData(data)
         if rep == -1:
             print("Patient creation Failed!")
             return False
         self.patientId = rep.json()["id"]
-        rep = DatabaseInteractorLib.getMorphologicalDataCollection(self.collectionTestId).json()
+        rep = self.DatabaseInteractorLib.getMorphologicalDataCollection(self.collectionTestId).json()
         rep["items"].append({'_id': self.patientId})
-        upd = DatabaseInteractorLib.updateMorphologicalDataCollection(json.dumps(rep))
+        upd = self.DatabaseInteractorLib.updateMorphologicalDataCollection(json.dumps(rep))
         if upd == -1:
             print("Patient creation Failed!")
             return False
@@ -1001,7 +1004,7 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         filePath = slicer.app.temporaryPath + '/FA.nrrd'
         file = open(filePath,'rb')
         data = file.read()
-        rep = DatabaseInteractorLib.addAttachment(self.patientId,'attachmentTest.nrrd',data)
+        rep = self.DatabaseInteractorLib.addAttachment(self.patientId,'attachmentTest.nrrd',data)
         if rep == -1:
             print("Attachment upload Failed!")
             return False
@@ -1012,7 +1015,7 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         # ---------------------------------------------------------------- #
         # --------------------- Getting an attachment -------------------- #
         # ---------------------------------------------------------------- #
-        rep = DatabaseInteractorLib.getAttachment(self.patientId,'attachmentTest.nrrd', 'blob')
+        rep = self.DatabaseInteractorLib.getAttachment(self.patientId,'attachmentTest.nrrd', 'blob')
         if rep == -1:
             print("Getting attachment Failed!")
             return False
@@ -1028,7 +1031,7 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         # ---------------------------------------------------------------- #
         # --------------------- Delete the test patient ------------------ #
         # ---------------------------------------------------------------- #
-        rep = DatabaseInteractorLib.deleteMorphologicalData(self.patientId)
+        rep = self.DatabaseInteractorLib.deleteMorphologicalData(self.patientId)
         if rep == -1:
             print("Patient deletion Failed!")
             return False
@@ -1039,7 +1042,7 @@ class DatabaseInteractorTest(ScriptedLoadableModuleTest):
         # ---------------------------------------------------------------- #
         # ------------------- Delete the test collection ----------------- #
         # ---------------------------------------------------------------- #
-        rep = DatabaseInteractorLib.deleteMorphologicalDataCollection(self.collectionTestId)
+        rep = self.DatabaseInteractorLib.deleteMorphologicalDataCollection(self.collectionTestId)
         if rep == -1:
             print("Collection deletion Failed!")
             return False
