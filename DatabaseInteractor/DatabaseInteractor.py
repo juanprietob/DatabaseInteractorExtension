@@ -15,12 +15,12 @@ class DatabaseInteractor(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = "Database Interactor"
-        self.parent.categories = ["Quantification"]
+        self.parent.categories = ["Web System Tools"]
         self.parent.dependencies = []
         self.parent.contributors = [
-            "Clement Mirabel (University of Michigan)"]
+            "Clement Mirabel (University of Michigan)", "Juan Carlos Prieto (UNC)"]
         self.parent.helpText = """
-    To be completed.
+    For users using the amazon web service Website developed by Clement Mirabel and Juan Prieto for Lucia Cevidanes project, the server address should be 'https://ec2-52-42-49-63.us-west-2.compute.amazonaws.com:8180/'. If you have any issue connecting, contact juanprieto@gmail.com or clement.mirabel@gmail.com.
     """
         self.parent.acknowledgementText = """
     To be completed.
@@ -69,7 +69,7 @@ class DatabaseInteractorWidget(ScriptedLoadableModuleWidget):
 
         # Server input
         self.serverInput = qt.QLineEdit()
-        self.serverInput.text = 'http://localhost:8180/'
+        self.serverInput.text = ''
         self.connectionGroupBoxLayout.addRow("Server address: ", self.serverInput)
 
         # Email input
