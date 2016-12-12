@@ -5,11 +5,11 @@ project(DatabaseInteractor)
 #-----------------------------------------------------------------------------
 # Extension meta-information
 set(EXTENSION_HOMEPAGE "http://slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/DatabaseInteractor")
-set(EXTENSION_CATEGORY "Examples")
-set(EXTENSION_CONTRIBUTORS "Clem (UOM)")
-set(EXTENSION_DESCRIPTION "This is an example of a simple extension")
-set(EXTENSION_ICONURL "http://www.example.com/Slicer/Extensions/DatabaseInteractor.png")
-set(EXTENSION_SCREENSHOTURLS "http://www.example.com/Slicer/Extensions/DatabaseInteractor/Screenshots/1.png")
+set(EXTENSION_CATEGORY "Web System Tools")
+set(EXTENSION_CONTRIBUTORS "Clement Mirabel (University of Michigan), Juan Carlos Prieto (UNC)")
+set(EXTENSION_DESCRIPTION "This extension can interact with online data in a database and local folders.")
+set(EXTENSION_ICONURL "https://www.slicer.org/wiki/File:DatabaseInteractor_Logo.png")
+set(EXTENSION_SCREENSHOTURLS "https://www.slicer.org/wiki/File:FullView_DatabaseInteractor.png")
 set(EXTENSION_DEPENDS "NA") # Specified as a space separated string, a list or 'NA' if any
 
 #-----------------------------------------------------------------------------
