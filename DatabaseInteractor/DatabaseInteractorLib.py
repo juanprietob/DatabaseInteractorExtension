@@ -1,6 +1,9 @@
+import os,sys
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)),'requests/'))
+import requests
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-import requests
+
 import json
 
 
