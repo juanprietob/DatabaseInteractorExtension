@@ -3,7 +3,7 @@ from slicer.ScriptedLoadableModule import *
 import json
 import logging
 import os
-
+import pickle
 
 #
 # DatabaseInteractor
@@ -40,7 +40,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 #        reload(DatabaseInteractorLib)
         self.DatabaseInteractorLib = DatabaseInteractorLib.DatabaseInteractorLib()
 
+        self.logic = DatabaseInteractorLogic(self)
         self.connected = False
+        self.networkTrained = False
         self.collections = dict()
         self.morphologicalData = dict()
         self.attachmentsList = {}
@@ -317,6 +319,34 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.createButton.enabled = False
         self.managementFormLayout.addRow(self.createButton)
 
+        # -------------------------------------------------------------- #
+        # --- Definition of condyle classfication collapsible button --- #
+        # -------------------------------------------------------------- #
+        # Collapsible button
+        self.condyleClassificationCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.condyleClassificationCollapsibleButton.text = "Condyle classification"
+        self.layout.addWidget(self.condyleClassificationCollapsibleButton)
+        self.condyleClassificationFormLayout = qt.QFormLayout(self.condyleClassificationCollapsibleButton)
+        self.condyleClassificationCollapsibleButton.hide()
+
+        # Dataset folderpath Selector
+        self.datasetFilepathSelector = ctk.ctkDirectoryButton()
+        self.datasetFilepathSelector.toolTip = "Choose the path to the folder where you saved files."
+        self.condyleClassificationFormLayout.addRow(qt.QLabel("Choose reference files: "), self.datasetFilepathSelector)
+
+        # Filepath Selector
+        self.unclassifiedCondyleSelector = slicer.qMRMLNodeComboBox()
+        self.unclassifiedCondyleSelector.nodeTypes = (("vtkMRMLModelNode"), "")
+        self.unclassifiedCondyleSelector.addEnabled = False
+        self.unclassifiedCondyleSelector.removeEnabled = False
+        self.unclassifiedCondyleSelector.setMRMLScene(slicer.mrmlScene)
+        self.condyleClassificationFormLayout.addRow("Choose condyle to be classified: ", self.unclassifiedCondyleSelector)
+
+        # Run Classifier Button
+        self.classifierButton = qt.QPushButton("Classify my condyle")
+        self.classifierButton.enabled = False
+        self.condyleClassificationFormLayout.addRow(self.classifierButton)
+
         # Add vertical spacer
         self.layout.addStretch(1)
 
@@ -331,6 +361,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.downloadCollectionButton.connect('clicked(bool)', self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.createButton.connect('clicked(bool)', self.onCreateButton)
+        self.classifierButton.connect('clicked(bool)', self.onClassifierButton)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -357,6 +388,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.uploadFilepathSelector.connect('directorySelected(const QString &)', self.createFilesDictionary)
         self.managementFilepathSelector.connect('directorySelected(const QString &)',
                                                 self.onManagementDirectorySelected)
+        self.datasetFilepathSelector.connect('directorySelected(const QString &)', self.onDatasetSelected)
+
+        # MRMLnode selector
+        self.unclassifiedCondyleSelector.connect('nodeActivated(vtkMRMLNode * node)',self.onCondyleSelected)
 
         # --- Try to connect when launching the module --- #
         if os.path.exists(self.tokenFilePath):
@@ -373,6 +408,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.fillSelectorWithCollections()
                 self.downloadCollapsibleButton.show()
                 self.uploadCollapsibleButton.show()
+                self.condyleClassificationCollapsibleButton.show()
                 if "admin" in self.DatabaseInteractorLib.getUserScope():
                     self.managementCollapsibleButton.show()
 
@@ -401,6 +437,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.downloadCollapsibleButton.show()
                 self.uploadCollapsibleButton.show()
                 self.managementCollapsibleButton.show()
+                self.condyleClassificationCollapsibleButton.show()
                 if "admin" not in userScope:
                     self.managementCollapsibleButton.hide()
         elif token == -1:
@@ -585,6 +622,15 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         json.dump(jsonfile, file, indent=3, sort_keys=True)
         file.close()
         self.fillSelectorWithPatients()
+
+    def onClassifierButton(self):
+        # Write the polydata in a temporary file
+        # meshWriter = vtk.vtkPolyDataWriter()
+        # meshWriter.SetInputData(self.unclassifiedCondyleSelector.currentNode().GetPolyData())
+        # filepath = slicer.app.temporaryPath + '/' + self.unclassifiedCondyleSelector.currentNode().GetName() + '.vtk'
+        # meshWriter.SetFileName(filepath)
+        # meshWriter.Write()
+        self.logic.pickleData(self.datasetFilepathSelector.directory)
 
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
@@ -803,6 +849,27 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.fillSelectorWithDescriptorPatients()
             self.isPossibleAddDate()
 
+    # Function used to chose what signal to connect depending on management action checked
+    def onManagementDirectorySelected(self):
+        if self.managementRadioButtonPatient.isChecked():
+            self.isPossibleCreatePatient()
+        else:
+            self.fillSelectorWithDescriptorPatients()
+            self.isPossibleAddDate()
+
+    def onDatasetSelected(self):
+        if(os.path.isdir(self.datasetFilepathSelector.directory)):
+            try:
+                self.unclassifiedCondyleSelector.currentNode().GetName()
+                self.classifierButton.enabled = True
+            except AttributeError:
+                self.classifierButton.enabled = False
+
+    def onCondyleSelected(self):
+        # if(os.path.isdir(self.datasetFilepathSelector.directory) and os.path.isfile(self.unclassifiedCondyleFilepathSelector.directory)):
+        #     self.classifierButton.enabled = True
+        print self.unclassifiedCondyleSelector.currentNode().GetName()
+
     # ---------------------------------------------------- #
     # ------------------ Other functions ----------------- #
     # ---------------------------------------------------- #
@@ -894,6 +961,58 @@ class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModu
 
     def run(self, email, password):
         return self.DatabaseInteractorLib.connect(email, password)
+
+    def pickleData(self, trainFolder_path):
+        import inputData
+        # valid_train = "/Users/prisgdd/Documents/Projects/CNN/DataPriscille/surfSPHARM/5Groups-Simulated-Feat-duplicate/"
+        # tests = "/Users/prisgdd/Documents/Projects/CNN/DataPriscille/surfSPHARM/5Groups-Feat/"
+        inputData = inputData.inputData()
+        train_size = 112
+        valid_size = 32
+        # test_size = 209
+
+        train_folders = inputData.get_folder_classes_list(trainFolder_path)  # Folder class liste
+        # test_folders = inputData.get_folder_classes_list(tests)
+
+        train_datasets = inputData.maybe_pickle(train_folders, 9)
+        # test_datasets = inputData.maybe_pickle(test_folders, 5)
+
+        valid_dataset, valid_labels, train_dataset, train_labels = inputData.merge_datasets(train_datasets, train_size,
+                                                                                            valid_size)
+        # _, _, test_dataset, test_labels = inputData.merge_all_datasets(test_datasets, test_size)
+
+        print('Training:', train_dataset.shape, train_labels.shape)
+        print('Validation:', valid_dataset.shape, valid_labels.shape)
+        # print('Testing:', test_dataset.shape, test_labels.shape)
+
+        train_dataset, train_labels = inputData.randomize(train_dataset, train_labels)
+        # test_dataset, test_labels = inputData.randomize(test_dataset, test_labels)
+        valid_dataset, valid_labels = inputData.randomize(valid_dataset, valid_labels)
+
+        # ----------------------------------------------------------------------------- #
+        # Save the data for later reuse
+
+
+        pickle_file = 'condyles.pickle'
+
+        try:
+            f = open(pickle_file, 'wb')
+            save = {
+                'train_dataset': train_dataset,
+                'train_labels': train_labels,
+                'valid_dataset': valid_dataset,
+                'valid_labels': valid_labels,
+                # 'test_dataset': test_dataset,
+                # 'test_labels': test_labels,
+            }
+            pickle.dump(save, f, pickle.HIGHEST_PROTOCOL)
+            f.close()
+        except Exception as e:
+            print('Unable to save data to', pickle_file, ':', e)
+            raise
+
+        statinfo = os.stat(pickle_file)
+        print('Compressed pickle size:', statinfo.st_size)
 
 
 class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModuleTest):
