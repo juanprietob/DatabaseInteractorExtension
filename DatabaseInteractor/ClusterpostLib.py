@@ -13,6 +13,7 @@ class ClusterpostLib():
         self.server = ""
         self.verify = False
         self.auth = {}
+        self.user = None
 
     def setServerUrl(self, server):
         self.server = server
@@ -20,15 +21,15 @@ class ClusterpostLib():
     def setVerifyHttps(self, verify):
         serlf.verify = verify
 
-    def createUser(self):
-        r = requests.get(url=self.server + "/auth/user",
-                         headers={'Authorization': 'Bearer ' + self.token}, verify=False)
-        if "error" not in r.json():
-            return r
-        else:
-            if 'message' in r.json():
-                print(r.json()['message'])
-                return -1
+    def getUser(self):
+        if(self.user == None):
+
+            r = requests.get(url=self.server + "/auth/user",
+                auth=self.auth,
+                verify=False)
+
+            self.user = r.json()
+        return self.user
 
     def userLogin(self, user):
         
@@ -101,11 +102,12 @@ class ClusterpostLib():
 
         return r.json()
 
-    def getJobs(self, executable, jobstatus=None, email=None):
+    def getJobs(self, executable=None, jobstatus=None, email=None):
 
-        payload={
-            "executable": executable
-        }
+        payload={}
+
+        if(executable):
+            payload["executable"] = executable
 
         if(jobstatus):
             payload["jobstatus"] = jobstatus
@@ -126,6 +128,37 @@ class ClusterpostLib():
             verify=self.verify)
 
         return r.json()
+
+    def createAndSubmitJob(self, job, files):
+        res = self.createJob(job)
+        
+        jobid = res["id"]
+
+        for file in files:
+            self.addAttachment(jobid, file)
+
+        return self.executeJob(jobid)
+
+    def getJobsDone(self, outdir):
+        res = self.getJobs(jobstatus="DONE")
+        for job in res:
+            outputs = job["outputs"]
+
+            jobname = job["_id"]
+            
+            key = "name"
+
+            if(key in job):
+                jobname = job["name"]
+
+            outputdir = os.path.join(outdir, jobname)
+            
+            if(not os.path.exists(outputdir)):
+                os.mkdir(outputdir)
+
+            for output in outputs:
+                if(output["type"] == "file"):
+                    self.getAttachment(job["_id"], output["name"], os.path.join(outputdir, output["name"]), "blob")
 
 
 class JWTAuth(requests.auth.AuthBase):

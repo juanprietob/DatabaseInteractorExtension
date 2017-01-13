@@ -42,6 +42,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 #        reload(DatabaseInteractorLib)
         self.DatabaseInteractorLib = DatabaseInteractorLib.DatabaseInteractorLib()
         self.clusterpost = ClusterpostLib.ClusterpostLib()
+        self.clusterpost.setServerUrl("http://localhost:8180")
 
         self.connected = False
         self.collections = dict()
@@ -327,6 +328,15 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # ----------------------- Submit training------------------ #
         # --------------------------------------------------------- #
 
+        # Collapsible button
+        self.trainModelCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.trainModelCollapsibleButton.text = "Train model"
+        self.layout.addWidget(self.trainModelCollapsibleButton, 0)
+        self.trainModelFormLayout = qt.QFormLayout(self.trainModelCollapsibleButton)
+
+        self.trainButton = qt.QPushButton("Train")
+        self.trainButton.toolTip = "Train model"
+        self.trainModelFormLayout.addRow(self.trainButton)
 
 
         # --------------------------------------------------------- #
@@ -340,6 +350,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.downloadCollectionButton.connect('clicked(bool)', self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.createButton.connect('clicked(bool)', self.onCreateButton)
+        self.trainButton.connect('clicked(bool)', self.onTrainModel)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -387,6 +398,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     self.managementCollapsibleButton.show()
 
             file.close()
+        
 
     def cleanup(self):
         pass
@@ -890,6 +902,56 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
                                                         self.normalDateFormat)
 
+
+    def onTrainModel(self):
+        pythonscript = "pathtoscript" 
+        pickle = "pathtopickle" 
+        jobname = "jobname"
+        executionserver = "selectexecutionserveroptional"
+
+        if(executionserver == None):
+            executionserver = self.clusterpost.getExecutionServers()[0]#This gives a list of servers
+
+        job = {
+            "executable": "python",
+            "parameters": [
+                {
+                    "flag": "",
+                    "name": os.path.basename(pythonscript)
+                },
+                {
+                    "flag": "-inputPickle",
+                    "name": os.path.basename(pickle)
+                }
+            ],
+            "inputs": [
+                {
+                    "name": os.path.basename(pythonscript)
+                },
+                {
+                    "name": os.path.basename(pickle)
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "file",
+                    "name": "model.ckpt"
+                },
+                {
+                    "type": "file",
+                    "name": "stdout.out"
+                },
+                {
+                    "type": "file",
+                    "name": "stderr.err"
+                }
+            ],
+            "type": "job",
+            "userEmail": self.clusterpost.getUser()["email"],
+            "executionserver": executionserver
+        }
+
+        self.clusterpost.createAndSubmitJob(job, [pythonscript, pickle])
 #
 # DatabaseInteractorLogic
 #
@@ -908,6 +970,7 @@ class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModu
         return self.DatabaseInteractorLib.connect(email, password)
 
 
+
 class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModuleTest):
     # Reset the scene
     def setUp(self):
@@ -917,7 +980,7 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         self.DatabaseInteractorLib.disconnect()
 
     def runTest(self):
-        self.runTestDbInteractor()
+        #self.runTestDbInteractor()
         self.runTestClusterpost()
 
     # Run the tests
@@ -1082,6 +1145,8 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         import ClusterpostLib
         import urllib
 
+        self.testfile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../DatabaseInteractor.png")
+
         self.setUp()
 
         self.clusterpost = ClusterpostLib.ClusterpostLib()
@@ -1105,6 +1170,10 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         self.assertTrue(self.testGetJobs())
 
         self.assertTrue(self.testGetDocumentAttachment())
+
+        self.assertTrue(self.testCreateAndSubmitJob())
+
+        self.assertTrue(self.testGetJobsDone())
 
     def testClusterpostLogin(self):
         self.clusterpost.userLogin({
@@ -1164,9 +1233,7 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return True
 
     def testAddAttachment(self):
-        filename = "./DatabaseInteractor.png"
-
-        res = self.clusterpost.addAttachment(self.jobid, filename)
+        res = self.clusterpost.addAttachment(self.jobid, self.testfile)
 
         return True
 
@@ -1187,6 +1254,54 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return True
 
     def testGetDocumentAttachment(self):
-        res = self.clusterpost.getAttachment(self.jobid, "DatabaseInteractor.png", "out.png", "blob")
+        res = self.clusterpost.getAttachment(self.jobid, self.testfile, "/tmp/out.png", "blob")
+
+        return True
+
+    def testCreateAndSubmitJob(self):
+        job = {
+            "executable": "cksum",
+            "parameters": [
+                {
+                    "flag": "",
+                    "name": "DatabaseInteractor.png"
+                }
+            ],
+            "inputs": [
+                {
+                    "name": "DatabaseInteractor.png"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "directory",
+                    "name": "./"
+                },            
+                {
+                    "type": "tar.gz",
+                    "name": "./"
+                },
+                {
+                    "type": "file",
+                    "name": "stdout.out"
+                },
+                {
+                    "type": "file",
+                    "name": "stderr.err"
+                }
+            ],
+            "type": "job",
+            "userEmail": "algiedi85@gmail.com",
+            "executionserver": self.executionserver
+        }
+
+        files = [self.testfile]
+        res = self.clusterpost.createAndSubmitJob(job, [self.testfile])
+
+        return True
+
+    def testGetJobsDone(self):
+        outdir = "/tmp/"
+        self.clusterpost.getJobsDone(outdir)
 
         return True
