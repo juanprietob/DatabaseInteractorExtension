@@ -1,1 +1,3 @@
-ClusterpostLib.pyc DatabaseInteractor.pyc DatabaseInteractorLib.pyc
+.DS_Store
+*.pyc
+
