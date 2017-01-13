@@ -3,7 +3,8 @@ from slicer.ScriptedLoadableModule import *
 import json
 import logging
 import os
-
+import DatabaseInteractorLib
+import requests
 
 #
 # DatabaseInteractor
@@ -37,8 +38,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # ------------------------ Global variables ---------------------- #
         # ---------------------------------------------------------------- #
         import DatabaseInteractorLib
+        import ClusterpostLib
 #        reload(DatabaseInteractorLib)
         self.DatabaseInteractorLib = DatabaseInteractorLib.DatabaseInteractorLib()
+        self.clusterpost = ClusterpostLib.ClusterpostLib()
 
         self.connected = False
         self.collections = dict()
@@ -321,6 +324,12 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.layout.addStretch(1)
 
         # --------------------------------------------------------- #
+        # ----------------------- Submit training------------------ #
+        # --------------------------------------------------------- #
+
+
+
+        # --------------------------------------------------------- #
         # ----------------------- Signals ------------------------- #
         # --------------------------------------------------------- #
 
@@ -365,6 +374,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.DatabaseInteractorLib.getServer(self.serverFilePath)
             if first_line != "":
                 # self.token = first_line
+                self.clusterpost.setToken(first_line)
                 self.DatabaseInteractorLib.token = first_line
                 self.connected = True
                 self.connectionGroupBox.hide()
@@ -403,6 +413,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.managementCollapsibleButton.show()
                 if "admin" not in userScope:
                     self.managementCollapsibleButton.hide()
+
+                self.clusterpost.setToken(token)
         elif token == -1:
             self.errorLoginText.text = error
             self.errorLoginText.show()
@@ -904,8 +916,12 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         slicer.mrmlScene.Clear(0)
         self.DatabaseInteractorLib.disconnect()
 
-    # Run the tests
     def runTest(self):
+        self.runTestDbInteractor()
+        self.runTestClusterpost()
+
+    # Run the tests
+    def runTestDbInteractor(self):
         self.setUp()
 
         self.delayDisplay(' Starting tests ')
@@ -1060,4 +1076,117 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
             if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
                 logging.info('Requesting download %s from %s...\n' % (name, url))
                 urllib.urlretrieve(url, filePath)
+        return True
+
+    def runTestClusterpost(self):
+        import ClusterpostLib
+        import urllib
+
+        self.setUp()
+
+        self.clusterpost = ClusterpostLib.ClusterpostLib()
+
+        self.clusterpost.setServerUrl("http://localhost:8180")
+        
+        self.delayDisplay(' Starting tests ')
+
+        self.assertTrue(self.testClusterpostLogin())
+
+        self.assertTrue(self.testGetExecutionServers())
+
+        self.assertTrue(self.testCreateJob())
+
+        self.assertTrue(self.testAddAttachment())
+
+        self.assertTrue(self.testExecuteJob())
+
+        self.assertTrue(self.testGetJob())
+
+        self.assertTrue(self.testGetJobs())
+
+        self.assertTrue(self.testGetDocumentAttachment())
+
+    def testClusterpostLogin(self):
+        self.clusterpost.userLogin({
+            "email": "algiedi85@gmail.com",
+            "password": "123Algiedi!"
+            })
+
+        return True
+        
+    def testGetExecutionServers(self):
+        servers = self.clusterpost.getExecutionServers()
+        print servers
+        self.executionserver = servers[0]["name"]
+        return True;
+
+    def testCreateJob(self):
+        job = {
+            "executable": "cksum",
+            "parameters": [
+                {
+                    "flag": "",
+                    "name": "DatabaseInteractor.png"
+                }
+            ],
+            "inputs": [
+                {
+                    "name": "DatabaseInteractor.png"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "directory",
+                    "name": "./"
+                },            
+                {
+                    "type": "tar.gz",
+                    "name": "./"
+                },
+                {
+                    "type": "file",
+                    "name": "stdout.out"
+                },
+                {
+                    "type": "file",
+                    "name": "stderr.err"
+                }
+            ],
+            "type": "job",
+            "userEmail": "algiedi85@gmail.com",
+            "executionserver": self.executionserver
+        }
+
+        res = self.clusterpost.createJob(job)
+
+        self.jobid = res["id"]
+
+        return True
+
+    def testAddAttachment(self):
+        filename = "./DatabaseInteractor.png"
+
+        res = self.clusterpost.addAttachment(self.jobid, filename)
+
+        return True
+
+    def testExecuteJob(self):
+
+        res = self.clusterpost.executeJob(self.jobid)
+
+        return True
+
+    def testGetJob(self):
+        res = self.clusterpost.getJob(self.jobid)
+
+        return True
+
+    def testGetJobs(self):
+        res = self.clusterpost.getJobs("cksum")
+
+        return True
+
+    def testGetDocumentAttachment(self):
+        res = self.clusterpost.getAttachment(self.jobid, "DatabaseInteractor.png", "out.png", "blob")
+
         return True
