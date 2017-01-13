@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import pickle
+import DatabaseInteractorLib
+import requests
 
 #
 # DatabaseInteractor
@@ -37,8 +39,11 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # ------------------------ Global variables ---------------------- #
         # ---------------------------------------------------------------- #
         import DatabaseInteractorLib
+        import ClusterpostLib
 #        reload(DatabaseInteractorLib)
         self.DatabaseInteractorLib = DatabaseInteractorLib.DatabaseInteractorLib()
+        self.clusterpost = ClusterpostLib.ClusterpostLib()
+        self.clusterpost.setServerUrl("http://localhost:8180")
 
         self.logic = DatabaseInteractorLogic(self)
         self.connected = False
@@ -351,6 +356,21 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.layout.addStretch(1)
 
         # --------------------------------------------------------- #
+        # ----------------------- Submit training------------------ #
+        # --------------------------------------------------------- #
+
+        # Collapsible button
+        self.trainModelCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.trainModelCollapsibleButton.text = "Train model"
+        self.layout.addWidget(self.trainModelCollapsibleButton, 0)
+        self.trainModelFormLayout = qt.QFormLayout(self.trainModelCollapsibleButton)
+
+        self.trainButton = qt.QPushButton("Train")
+        self.trainButton.toolTip = "Train model"
+        self.trainModelFormLayout.addRow(self.trainButton)
+
+
+        # --------------------------------------------------------- #
         # ----------------------- Signals ------------------------- #
         # --------------------------------------------------------- #
 
@@ -400,6 +420,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.DatabaseInteractorLib.getServer(self.serverFilePath)
             if first_line != "":
                 # self.token = first_line
+                self.clusterpost.setToken(first_line)
                 self.DatabaseInteractorLib.token = first_line
                 self.connected = True
                 self.connectionGroupBox.hide()
@@ -413,6 +434,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     self.managementCollapsibleButton.show()
 
             file.close()
+        
 
     def cleanup(self):
         pass
@@ -440,6 +462,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.condyleClassificationCollapsibleButton.show()
                 if "admin" not in userScope:
                     self.managementCollapsibleButton.hide()
+
+                self.clusterpost.setToken(token)
         elif token == -1:
             self.errorLoginText.text = error
             self.errorLoginText.show()
@@ -945,6 +969,56 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
                                                         self.normalDateFormat)
 
+
+    def onTrainModel(self):
+        pythonscript = "pathtoscript" 
+        pickle = "pathtopickle" 
+        jobname = "jobname"
+        executionserver = "selectexecutionserveroptional"
+
+        if(executionserver == None):
+            executionserver = self.clusterpost.getExecutionServers()[0]#This gives a list of servers
+
+        job = {
+            "executable": "python",
+            "parameters": [
+                {
+                    "flag": "",
+                    "name": os.path.basename(pythonscript)
+                },
+                {
+                    "flag": "-inputPickle",
+                    "name": os.path.basename(pickle)
+                }
+            ],
+            "inputs": [
+                {
+                    "name": os.path.basename(pythonscript)
+                },
+                {
+                    "name": os.path.basename(pickle)
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "file",
+                    "name": "model.ckpt"
+                },
+                {
+                    "type": "file",
+                    "name": "stdout.out"
+                },
+                {
+                    "type": "file",
+                    "name": "stderr.err"
+                }
+            ],
+            "type": "job",
+            "userEmail": self.clusterpost.getUser()["email"],
+            "executionserver": executionserver
+        }
+
+        self.clusterpost.createAndSubmitJob(job, [pythonscript, pickle])
 #
 # DatabaseInteractorLogic
 #
@@ -1015,6 +1089,7 @@ class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModu
         print('Compressed pickle size:', statinfo.st_size)
 
 
+
 class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModuleTest):
     # Reset the scene
     def setUp(self):
@@ -1023,8 +1098,12 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         slicer.mrmlScene.Clear(0)
         self.DatabaseInteractorLib.disconnect()
 
-    # Run the tests
     def runTest(self):
+        #self.runTestDbInteractor()
+        self.runTestClusterpost()
+
+    # Run the tests
+    def runTestDbInteractor(self):
         self.setUp()
 
         self.delayDisplay(' Starting tests ')
@@ -1179,4 +1258,169 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
             if not os.path.exists(filePath) or os.stat(filePath).st_size == 0:
                 logging.info('Requesting download %s from %s...\n' % (name, url))
                 urllib.urlretrieve(url, filePath)
+        return True
+
+    def runTestClusterpost(self):
+        import ClusterpostLib
+        import urllib
+
+        self.testfile = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../DatabaseInteractor.png")
+
+        self.setUp()
+
+        self.clusterpost = ClusterpostLib.ClusterpostLib()
+
+        self.clusterpost.setServerUrl("http://localhost:8180")
+        
+        self.delayDisplay(' Starting tests ')
+
+        self.assertTrue(self.testClusterpostLogin())
+
+        self.assertTrue(self.testGetExecutionServers())
+
+        self.assertTrue(self.testCreateJob())
+
+        self.assertTrue(self.testAddAttachment())
+
+        self.assertTrue(self.testExecuteJob())
+
+        self.assertTrue(self.testGetJob())
+
+        self.assertTrue(self.testGetJobs())
+
+        self.assertTrue(self.testGetDocumentAttachment())
+
+        self.assertTrue(self.testCreateAndSubmitJob())
+
+        self.assertTrue(self.testGetJobsDone())
+
+    def testClusterpostLogin(self):
+        self.clusterpost.userLogin({
+            "email": "algiedi85@gmail.com",
+            "password": "123Algiedi!"
+            })
+
+        return True
+        
+    def testGetExecutionServers(self):
+        servers = self.clusterpost.getExecutionServers()
+        print servers
+        self.executionserver = servers[0]["name"]
+        return True;
+
+    def testCreateJob(self):
+        job = {
+            "executable": "cksum",
+            "parameters": [
+                {
+                    "flag": "",
+                    "name": "DatabaseInteractor.png"
+                }
+            ],
+            "inputs": [
+                {
+                    "name": "DatabaseInteractor.png"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "directory",
+                    "name": "./"
+                },            
+                {
+                    "type": "tar.gz",
+                    "name": "./"
+                },
+                {
+                    "type": "file",
+                    "name": "stdout.out"
+                },
+                {
+                    "type": "file",
+                    "name": "stderr.err"
+                }
+            ],
+            "type": "job",
+            "userEmail": "algiedi85@gmail.com",
+            "executionserver": self.executionserver
+        }
+
+        res = self.clusterpost.createJob(job)
+
+        self.jobid = res["id"]
+
+        return True
+
+    def testAddAttachment(self):
+        res = self.clusterpost.addAttachment(self.jobid, self.testfile)
+
+        return True
+
+    def testExecuteJob(self):
+
+        res = self.clusterpost.executeJob(self.jobid)
+
+        return True
+
+    def testGetJob(self):
+        res = self.clusterpost.getJob(self.jobid)
+
+        return True
+
+    def testGetJobs(self):
+        res = self.clusterpost.getJobs("cksum")
+
+        return True
+
+    def testGetDocumentAttachment(self):
+        res = self.clusterpost.getAttachment(self.jobid, self.testfile, "/tmp/out.png", "blob")
+
+        return True
+
+    def testCreateAndSubmitJob(self):
+        job = {
+            "executable": "cksum",
+            "parameters": [
+                {
+                    "flag": "",
+                    "name": "DatabaseInteractor.png"
+                }
+            ],
+            "inputs": [
+                {
+                    "name": "DatabaseInteractor.png"
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "directory",
+                    "name": "./"
+                },            
+                {
+                    "type": "tar.gz",
+                    "name": "./"
+                },
+                {
+                    "type": "file",
+                    "name": "stdout.out"
+                },
+                {
+                    "type": "file",
+                    "name": "stderr.err"
+                }
+            ],
+            "type": "job",
+            "userEmail": "algiedi85@gmail.com",
+            "executionserver": self.executionserver
+        }
+
+        files = [self.testfile]
+        res = self.clusterpost.createAndSubmitJob(job, [self.testfile])
+
+        return True
+
+    def testGetJobsDone(self):
+        outdir = "/tmp/"
+        self.clusterpost.getJobsDone(outdir)
+
         return True
