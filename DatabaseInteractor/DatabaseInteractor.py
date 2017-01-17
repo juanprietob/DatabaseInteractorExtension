@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import pickle
-import DatabaseInteractorLib
+# import DatabaseInteractorLib
 import requests
 
 #
@@ -43,7 +43,11 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 #        reload(DatabaseInteractorLib)
         self.DatabaseInteractorLib = DatabaseInteractorLib.DatabaseInteractorLib()
         self.clusterpost = ClusterpostLib.ClusterpostLib()
-        self.clusterpost.setServerUrl("http://localhost:8180")
+        self.clusterpost.setServerUrl("https://ec2-52-42-49-63.us-west-2.compute.amazonaws.com:8180")
+        self.tokenFilePath = os.path.join(slicer.app.temporaryPath, 'server_executable')
+        file = open(self.tokenFilePath, 'w+')
+        file.write("https://ec2-52-42-49-63.us-west-2.compute.amazonaws.com:8180")
+        file.close()
 
         self.logic = DatabaseInteractorLogic(self)
         self.connected = False
@@ -329,7 +333,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # -------------------------------------------------------------- #
         # Collapsible button
         self.condyleClassificationCollapsibleButton = ctk.ctkCollapsibleButton()
-        self.condyleClassificationCollapsibleButton.text = "Condyle classification"
+        self.condyleClassificationCollapsibleButton.text = "Shape classification"
         self.layout.addWidget(self.condyleClassificationCollapsibleButton)
         self.condyleClassificationFormLayout = qt.QFormLayout(self.condyleClassificationCollapsibleButton)
         self.condyleClassificationCollapsibleButton.hide()
@@ -337,7 +341,33 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # Dataset folderpath Selector
         self.datasetFilepathSelector = ctk.ctkDirectoryButton()
         self.datasetFilepathSelector.toolTip = "Choose the path to the folder where you saved files."
-        self.condyleClassificationFormLayout.addRow(qt.QLabel("Choose reference files: "), self.datasetFilepathSelector)
+        self.condyleClassificationFormLayout.addRow(qt.QLabel("Choose files to be pickled: "), self.datasetFilepathSelector)
+
+        self.pickleButton = qt.QPushButton("Pickle files")
+        self.pickleButton.toolTip = "Train model"
+        self.condyleClassificationFormLayout.addRow(self.pickleButton)
+
+        self.pickleSelector = ctk.ctkPathLineEdit()
+        self.condyleClassificationFormLayout.addRow("Pick a pickle file:" ,self.pickleSelector)
+
+        # self.scriptSelector = ctk.ctkPathLineEdit()
+        # self.trainModelFormLayout.addRow("Pick a script:", self.scriptSelector)
+
+        self.jobname = qt.QLineEdit()
+        self.jobname.text = ''
+        self.condyleClassificationFormLayout.addRow("Add a job name: ", self.jobname)
+
+        self.trainButton = qt.QPushButton("Train")
+        self.trainButton.toolTip = "Train model"
+        self.condyleClassificationFormLayout.addRow(self.trainButton)
+
+        # Dataset folderpath Selector
+        self.trainingOutputSelector = ctk.ctkDirectoryButton()
+        self.trainingOutputSelector.toolTip = "Choose the path to the folder where you saved files."
+        self.condyleClassificationFormLayout.addRow(qt.QLabel("Choose training output folder: "), self.trainingOutputSelector)
+
+        self.getJobsButton = qt.QPushButton("Get Result")
+        self.condyleClassificationFormLayout.addRow(self.getJobsButton)
 
         # Filepath Selector
         self.unclassifiedCondyleSelector = slicer.qMRMLNodeComboBox()
@@ -345,12 +375,18 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.unclassifiedCondyleSelector.addEnabled = False
         self.unclassifiedCondyleSelector.removeEnabled = False
         self.unclassifiedCondyleSelector.setMRMLScene(slicer.mrmlScene)
-        self.condyleClassificationFormLayout.addRow("Choose condyle to be classified: ", self.unclassifiedCondyleSelector)
+        self.condyleClassificationFormLayout.addRow("Choose shape to be classified: ", self.unclassifiedCondyleSelector)
 
         # Run Classifier Button
-        self.classifierButton = qt.QPushButton("Classify my condyle")
+        self.classifierButton = qt.QPushButton("Classify the shape")
         self.classifierButton.enabled = False
         self.condyleClassificationFormLayout.addRow(self.classifierButton)
+
+        self.resultText = qt.QLabel()
+        self.resultText.text = ""
+        self.resultText.setStyleSheet("color: rgb(255, 0, 0);")
+        self.condyleClassificationFormLayout.addRow(self.resultText)
+        self.resultText.hide()
 
         # Add vertical spacer
         self.layout.addStretch(1)
@@ -359,15 +395,25 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # ----------------------- Submit training------------------ #
         # --------------------------------------------------------- #
 
-        # Collapsible button
-        self.trainModelCollapsibleButton = ctk.ctkCollapsibleButton()
-        self.trainModelCollapsibleButton.text = "Train model"
-        self.layout.addWidget(self.trainModelCollapsibleButton, 0)
-        self.trainModelFormLayout = qt.QFormLayout(self.trainModelCollapsibleButton)
-
-        self.trainButton = qt.QPushButton("Train")
-        self.trainButton.toolTip = "Train model"
-        self.trainModelFormLayout.addRow(self.trainButton)
+        # # Collapsible button
+        # self.trainModelCollapsibleButton = ctk.ctkCollapsibleButton()
+        # self.trainModelCollapsibleButton.text = "Train model"
+        # self.layout.addWidget(self.trainModelCollapsibleButton, 0)
+        # self.trainModelFormLayout = qt.QFormLayout(self.trainModelCollapsibleButton)
+        #
+        # self.pickleSelector = ctk.ctkPathLineEdit()
+        # self.trainModelFormLayout.addRow("Pick a pickle file:" ,self.pickleSelector)
+        #
+        # # self.scriptSelector = ctk.ctkPathLineEdit()
+        # # self.trainModelFormLayout.addRow("Pick a script:", self.scriptSelector)
+        #
+        # self.jobname = qt.QLineEdit()
+        # self.jobname.text = ''
+        # self.trainModelFormLayout.addRow("Add a job name: ", self.jobname)
+        #
+        # self.trainButton = qt.QPushButton("Train")
+        # self.trainButton.toolTip = "Train model"
+        # self.trainModelFormLayout.addRow(self.trainButton)
 
 
         # --------------------------------------------------------- #
@@ -381,7 +427,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.downloadCollectionButton.connect('clicked(bool)', self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.createButton.connect('clicked(bool)', self.onCreateButton)
-        self.classifierButton.connect('clicked(bool)', self.onClassifierButton)
+        self.pickleButton.connect('clicked(bool)', self.onPickleButton)
+        self.trainButton.connect('clicked(bool)', self.onTrainModel)
+        self.getJobsButton.connect('clicked(bool)', self.onJobsButton)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -647,6 +695,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         file.close()
         self.fillSelectorWithPatients()
 
+    def onPickleButton(self):
+        self.logic.pickleData(self.datasetFilepathSelector.directory)
+        self.pickleSelector.setCurrentPath(os.path.join(slicer.app.temporaryPath,'condyles.pickle'))
+
     def onClassifierButton(self):
         # Write the polydata in a temporary file
         # meshWriter = vtk.vtkPolyDataWriter()
@@ -654,7 +706,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # filepath = slicer.app.temporaryPath + '/' + self.unclassifiedCondyleSelector.currentNode().GetName() + '.vtk'
         # meshWriter.SetFileName(filepath)
         # meshWriter.Write()
-        self.logic.pickleData(self.datasetFilepathSelector.directory)
+        # self.logic.pickleData(self.datasetFilepathSelector.directory)
+        # self.pickleSelector.set(os.path)
+        print "ok"
 
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
@@ -968,24 +1022,24 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 else:
                     self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
                                                         self.normalDateFormat)
-
+    def onJobsButton(self):
+        self.clusterpost.getJobsDone(self.trainingOutputSelector.directory)
 
     def onTrainModel(self):
-        pythonscript = "pathtoscript" 
-        pickle = "pathtopickle" 
-        jobname = "jobname"
-        executionserver = "selectexecutionserveroptional"
-
+        print "here"
+        # pythonscript = "pathtoscript"
+        # pythonscript = self.scriptSelector.currentPath
+        pickle = self.pickleSelector.currentPath
+        # pickle = "pathtopickle"
+        jobname = self.jobname.text
+        # executionserver = "selectexecutionserveroptional"
+        executionserver = None
         if(executionserver == None):
-            executionserver = self.clusterpost.getExecutionServers()[0]#This gives a list of servers
+            executionserver = self.clusterpost.getExecutionServers()[0]["name"]#This gives a list of servers
 
         job = {
-            "executable": "python",
+            "executable": "trainCondylesClassification.sh",
             "parameters": [
-                {
-                    "flag": "",
-                    "name": os.path.basename(pythonscript)
-                },
                 {
                     "flag": "-inputPickle",
                     "name": os.path.basename(pickle)
@@ -993,13 +1047,14 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             ],
             "inputs": [
                 {
-                    "name": os.path.basename(pythonscript)
-                },
-                {
                     "name": os.path.basename(pickle)
                 }
             ],
             "outputs": [
+                {
+                    "type": "directory",
+                    "name": "train"
+                },
                 {
                     "type": "file",
                     "name": "model.ckpt"
@@ -1017,8 +1072,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             "userEmail": self.clusterpost.getUser()["email"],
             "executionserver": executionserver
         }
-
-        self.clusterpost.createAndSubmitJob(job, [pythonscript, pickle])
+        print job
+        self.clusterpost.createAndSubmitJob(job, [pickle])
 #
 # DatabaseInteractorLogic
 #
@@ -1070,7 +1125,7 @@ class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModu
         pickle_file = 'condyles.pickle'
 
         try:
-            f = open(pickle_file, 'wb')
+            f = open(os.path.join(slicer.app.temporaryPath,pickle_file), 'wb+')
             save = {
                 'train_dataset': train_dataset,
                 'train_labels': train_labels,
@@ -1085,9 +1140,8 @@ class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModu
             print('Unable to save data to', pickle_file, ':', e)
             raise
 
-        statinfo = os.stat(pickle_file)
+        statinfo = os.stat(os.path.join(slicer.app.temporaryPath,pickle_file))
         print('Compressed pickle size:', statinfo.st_size)
-
 
 
 class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModuleTest):

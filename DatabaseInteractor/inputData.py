@@ -1,6 +1,6 @@
 import os
 import numpy as np
-import vtk
+import vtk, slicer
 import pickle
 
 
@@ -188,7 +188,8 @@ class inputData():
             if os.path.isdir(os.path.join(data_folders, d)):
                 folders.append(os.path.join(data_folders, d))
         for folder in folders:
-            set_filename = folder + '.pickle'
+            head, tail = os.path.split(folder)
+            set_filename = os.path.join(slicer.app.temporaryPath, tail + '.pickle')
             dataset_names.append(set_filename)
             if os.path.exists(set_filename) and not force:
                 # You may override by setting force=True.
