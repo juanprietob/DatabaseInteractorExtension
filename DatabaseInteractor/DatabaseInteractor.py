@@ -430,6 +430,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.pickleButton.connect('clicked(bool)', self.onPickleButton)
         self.trainButton.connect('clicked(bool)', self.onTrainModel)
         self.getJobsButton.connect('clicked(bool)', self.onJobsButton)
+        self.classifierButton.connect('clicked(bool)', self.onClassifierButton)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -529,6 +530,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.errorLoginText.hide()
         self.disconnectionButton.hide()
         self.downloadCollapsibleButton.hide()
+        self.condyleClassificationCollapsibleButton.hide()
         self.uploadCollapsibleButton.hide()
         self.managementCollapsibleButton.hide()
         # Erase token from file
@@ -700,15 +702,60 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.pickleSelector.setCurrentPath(os.path.join(slicer.app.temporaryPath,'condyles.pickle'))
 
     def onClassifierButton(self):
+        print "HEllo"
         # Write the polydata in a temporary file
-        # meshWriter = vtk.vtkPolyDataWriter()
-        # meshWriter.SetInputData(self.unclassifiedCondyleSelector.currentNode().GetPolyData())
-        # filepath = slicer.app.temporaryPath + '/' + self.unclassifiedCondyleSelector.currentNode().GetName() + '.vtk'
-        # meshWriter.SetFileName(filepath)
-        # meshWriter.Write()
-        # self.logic.pickleData(self.datasetFilepathSelector.directory)
-        # self.pickleSelector.set(os.path)
-        print "ok"
+        meshWriter = vtk.vtkPolyDataWriter()
+        meshWriter.SetInputData(self.unclassifiedCondyleSelector.currentNode().GetPolyData())
+        shape = slicer.app.temporaryPath + '/' + self.unclassifiedCondyleSelector.currentNode().GetName() + '.vtk'
+        meshWriter.SetFileName(shape)
+        meshWriter.Write()
+
+        ckpt = os.path.join(self.trainingOutputSelector.directory, "weights_5Groups-surfSPHARM.ckpt")
+        jobname = "ShapeClassifier"
+        executionserver = None
+        if(executionserver == None):
+            executionserver = self.clusterpost.getExecutionServers()[0]["name"]#This gives a list of servers
+
+        job = {
+            "executable": "trainCondylesClassification.sh",
+            "parameters": [
+                {
+                    "flag": "-inputFile",
+                    "name": os.path.basename(shape)
+                },
+                {
+                    "flag": "-saveModelPath",
+                    "name": os.path.basename(ckpt)
+                }
+            ],
+            "inputs": [
+                {
+                    "name": os.path.basename(shape)
+                },
+                {
+                    "name": os.path.basename(ckpt)
+                }
+            ],
+            "outputs": [
+                {
+                    "type": "integer",
+                    "name": "class"
+                },
+                {
+                    "type": "file",
+                    "name": "stdout.out"
+                },
+                {
+                    "type": "file",
+                    "name": "stderr.err"
+                }
+            ],
+            "type": "job",
+            "userEmail": self.clusterpost.getUser()["email"],
+            "executionserver": executionserver
+        }
+        print job
+        self.clusterpost.createAndSubmitJob(job, [shape, ckpt])
 
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
@@ -1026,7 +1073,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.clusterpost.getJobsDone(self.trainingOutputSelector.directory)
 
     def onTrainModel(self):
-        print "here"
         # pythonscript = "pathtoscript"
         # pythonscript = self.scriptSelector.currentPath
         pickle = self.pickleSelector.currentPath
