@@ -51,6 +51,17 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         scriptedModulesPath = os.path.dirname(scriptedModulesPath)
 
         # ---------------------------------------------------------------- #
+        # -------------------- QT Socket Definitions --------------------- #
+        # ---------------------------------------------------------------- #
+        # Doc: http://pyqt.sourceforge.net/Docs/PyQt4/qabstractsocket.html
+
+        self.socket = qt.QTcpSocket()
+        self.socket.connect('connected()', self.on_connect)
+        self.socket.connect('disconnected()', self.on_disconnect)
+        self.socket.connect('hostFound()', self.on_hostFound)
+        self.socket.connect('readyRead()', self.handleRead)
+
+        # ---------------------------------------------------------------- #
         # ---------------- Definition of the UI interface ---------------- #
         # ---------------------------------------------------------------- #
 
@@ -317,6 +328,49 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.createButton.enabled = False
         self.managementFormLayout.addRow(self.createButton)
 
+        # ----------------------------------------------- #
+        # -- Definition of websocket collapsible button - #
+        # ----------------------------------------------- #
+        websocketCollapsibleButton = ctk.ctkCollapsibleButton()
+        websocketCollapsibleButton.text = "Websocket"
+        self.layout.addWidget(websocketCollapsibleButton)
+        websocketFormLayout = qt.QFormLayout(websocketCollapsibleButton)
+
+        self.websocketHostInput = qt.QLineEdit()
+        self.websocketPortInput = qt.QLineEdit()
+
+        self.websocketParamsLayout = qt.QHBoxLayout()
+        self.websocketParamsLayout.addWidget(qt.QLabel("Host: "))
+        self.websocketParamsLayout.addWidget(self.websocketHostInput)
+        self.websocketParamsLayout.addWidget(qt.QLabel("Port: "))
+        self.websocketParamsLayout.addWidget(self.websocketPortInput)
+
+        websocketFormLayout.addRow(self.websocketParamsLayout)
+
+
+        # Connect Socket Button
+        self.connectSocketButton = qt.QPushButton("Connect")
+
+        # Disconnect Socket Button
+        self.disconnectSocketButton = qt.QPushButton("Disconnect")
+
+        # HBox Layout for (dis)connection buttons
+        self.connectionHBoxLayout = qt.QHBoxLayout()
+        self.connectionHBoxLayout.addWidget(self.connectSocketButton)
+        self.connectionHBoxLayout.addWidget(self.disconnectSocketButton)
+
+        websocketFormLayout.addRow(self.connectionHBoxLayout)
+
+        # Websocket Console
+        self.websocketConsole = qt.QTextEdit()
+        self.websocketConsole.readOnly = True
+        self.websocketConsole.setStyleSheet(
+            "color: white;"
+            "background-color: black;"
+            "font-family: Courier;font-style: normal;font-size: 12pt;"
+        )
+        websocketFormLayout.addRow(self.websocketConsole)
+
         # Add vertical spacer
         self.layout.addStretch(1)
 
@@ -331,6 +385,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.downloadCollectionButton.connect('clicked(bool)', self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.createButton.connect('clicked(bool)', self.onCreateButton)
+        self.connectSocketButton.connect('clicked(bool)', self.onConnectSocketButton)
+        self.disconnectSocketButton.connect('clicked(bool)', self.onDisconnectSocketButton)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -380,6 +436,30 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
     def cleanup(self):
         pass
+
+    # ------------ QT Socket Signals -------------- #
+    def on_connect(self):
+        self.websocketConsole.append('[Connected]')
+        if self.socket.isValid():
+            self.socket.write('Hello')
+
+    def on_hostFound(self):
+        self.websocketConsole.append('[Host found]')
+
+    def handleRead(self):
+        while self.socket.canReadLine():
+            m = str(self.socket.readLine()).rstrip('\r\n')
+            self.websocketConsole.append('> ' + m)
+            if m == "connected":
+                self.socket.write('emit_with_callback')
+
+    def on_error(self):
+        self.websocketConsole.append('[Error]\n')
+        print('[Error]')
+        print self.socket.error()
+
+    def on_disconnect(self):
+        self.websocketConsole.append('[Disconnected]\n\n')
 
     # ------------ Buttons -------------- #
     # Function used to connect user to the database and store token in a file
@@ -585,6 +665,15 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         json.dump(jsonfile, file, indent=3, sort_keys=True)
         file.close()
         self.fillSelectorWithPatients()
+
+    # Function used to create a socket between client and given server
+    def onConnectSocketButton(self):
+        self.socket.connectToHost(str(self.websocketHostInput.text), int(self.websocketPortInput.text))
+
+    # Function used to stop the socket
+    def onDisconnectSocketButton(self):
+        self.socket.disconnectFromHost()
+
 
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
