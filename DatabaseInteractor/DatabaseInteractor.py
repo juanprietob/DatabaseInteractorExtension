@@ -440,6 +440,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
     # ------------ QT Socket Signals -------------- #
     def on_connect(self):
         self.websocketConsole.append('[Connected]')
+        self.connectSocketButton.enabled = False
+        self.disconnectSocketButton.enabled = True
+        self.websocketHostInput.enabled = False
+        self.websocketPortInput.enabled = False
         if self.socket.isValid():
             self.socket.write('Hello')
 
@@ -460,6 +464,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
     def on_disconnect(self):
         self.websocketConsole.append('[Disconnected]\n\n')
+        self.disconnectSocketButton.enabled = False
+        self.connectSocketButton.enabled = True
+        self.websocketHostInput.enabled = True
+        self.websocketPortInput.enabled = True
 
     # ------------ Buttons -------------- #
     # Function used to connect user to the database and store token in a file
@@ -673,7 +681,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
     # Function used to stop the socket
     def onDisconnectSocketButton(self):
         self.socket.disconnectFromHost()
-
 
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
