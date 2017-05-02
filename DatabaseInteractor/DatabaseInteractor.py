@@ -52,8 +52,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.moduleName = 'DatabaseInteractor'
         scriptedModulesPath = eval('slicer.modules.%s.path' % self.moduleName.lower())
         scriptedModulesPath = os.path.dirname(scriptedModulesPath)
+
         self.timer = qt.QTimer()
         self.timer.timeout.connect(self.overflow)
+        self.timerPeriod = 60 * 1000
 
         # ---------------------------------------------------------------- #
         # ---------------- Definition of the UI interface ---------------- #
@@ -694,7 +696,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.fillSelectorWithPatients()
 
     def onConnectListenerButton(self):
-        self.timer.start(1000)
+        self.timer.start(self.timerPeriod)
 
     def onDiconnectListenerButton(self):
         self.timer.stop()
@@ -702,7 +704,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
     def overflow(self):
         self.timer.stop()
         print ">>>>>>>>>>>>>>>>"
-        self.timer.start(1000)
+        print self.ClusterpostLib.getJobs(jobstatus='QUEUE')
+        self.timer.start(self.timerPeriod)
 
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
