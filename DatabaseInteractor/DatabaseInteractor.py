@@ -40,6 +40,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 #        reload(DatabaseInteractorLib)
         self.DatabaseInteractorLib = DatabaseInteractorLib.DatabaseInteractorLib()
 
+        import ClusterpostLib
+        self.ClusterpostLib = ClusterpostLib.ClusterpostLib()
+
         self.connected = False
         self.collections = dict()
         self.morphologicalData = dict()
@@ -317,6 +320,26 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.createButton.enabled = False
         self.managementFormLayout.addRow(self.createButton)
 
+        # -------------------------------------------------------------- #
+        # -------- Definition of task creator collapsible button ------ #
+        # -------------------------------------------------------------- #
+        # Collapsible button
+        self.taskCreatorCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.taskCreatorCollapsibleButton.text = "Create a task"
+        self.layout.addWidget(self.taskCreatorCollapsibleButton)
+        self.taskCreatorFormLayout = qt.QFormLayout(self.taskCreatorCollapsibleButton)
+
+        self.executableSelector = qt.QComboBox()
+        self.taskCreatorFormLayout.addRow("Select an executable:", self.executableSelector)
+
+        self.widgetSelectedGroupBox = qt.QGroupBox()
+        self.widgetSelectedGroupBoxLayout = qt.QVBoxLayout(self.widgetSelectedGroupBox)
+        self.taskCreatorFormLayout.addRow(self.widgetSelectedGroupBox)
+        self.widgetSelectedGroupBox.hide()
+
+        self.currentExecutable = None
+        # self.condyleClassificationCollapsibleButton.hide()
+
         # Add vertical spacer
         self.layout.addStretch(1)
 
@@ -349,6 +372,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.uploadPatientSelector.connect('currentIndexChanged(const QString&)', self.onUploadPatientChosen)
         self.uploadDateSelector.connect('currentIndexChanged(const QString&)', self.onUploadDateChosen)
         self.managementPatientSelector.connect('currentIndexChanged(const QString&)', self.isPossibleAddDate)
+        self.executableSelector.connect('currentIndexChanged(const QString&)', self.executableSelected)
 
         # Calendar
         self.downloadDate.connect('clicked(const QDate&)', self.fillSelectorWithAttachments)
@@ -365,6 +389,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.DatabaseInteractorLib.getServer(self.serverFilePath)
             if first_line != "":
                 # self.token = first_line
+                self.ClusterpostLib.setToken(first_line)
+                self.ClusterpostLib.setServerUrl(self.DatabaseInteractorLib.server[:-1])
                 self.DatabaseInteractorLib.token = first_line
                 self.connected = True
                 self.connectionGroupBox.hide()
@@ -373,6 +399,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.fillSelectorWithCollections()
                 self.downloadCollapsibleButton.show()
                 self.uploadCollapsibleButton.show()
+                self.fillExecutableSelector()
                 if "admin" in self.DatabaseInteractorLib.getUserScope():
                     self.managementCollapsibleButton.show()
 
@@ -385,6 +412,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
     # Function used to connect user to the database and store token in a file
     def onConnectionButton(self):
         self.DatabaseInteractorLib.setServer(self.serverInput.text, self.serverFilePath)
+        self.ClusterpostLib.setServerUrl(self.serverInput.text[:-1])
         token, error = self.DatabaseInteractorLib.connect(self.emailInput.text, self.passwordInput.text)
         if token != -1:
             userScope = self.DatabaseInteractorLib.getUserScope()
@@ -393,6 +421,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 file = open(self.tokenFilePath, 'w+')
                 file.write(token)
                 file.close()
+                self.ClusterpostLib.setToken(token)
                 self.connected = True
                 self.connectionGroupBox.hide()
                 self.connectionButton.hide()
@@ -403,6 +432,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.managementCollapsibleButton.show()
                 if "admin" not in userScope:
                     self.managementCollapsibleButton.hide()
+
         elif token == -1:
             self.errorLoginText.text = error
             self.errorLoginText.show()
@@ -683,6 +713,15 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.managementPatientSelector.model().sort(0)
         self.managementPatientSelector.setCurrentIndex(0)
 
+    def fillExecutableSelector(self):
+        self.modules = {}
+        modules = slicer.modules.__dict__.keys()
+        self.executableSelector.addItem("RigidAlignment")
+        for moduleName in modules:
+            module = getattr(slicer.modules, moduleName)
+            if hasattr(module, "cliModuleLogic"):
+                self.executableSelector.addItem(module.name)
+
     # Function used to enable creation button if path contains a descriptor and is a patient is chosen
     def isPossibleAddDate(self):
         directoryPath = self.managementFilepathSelector.directory
@@ -726,6 +765,66 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.uploadButton.enabled = False
             self.uploadListLayout.addWidget(self.noneLabel)
             self.noneLabel.setText("None")
+
+
+    def executableSelected(self):
+        if hasattr(slicer.modules, self.executableSelector.currentText.lower()):
+            self.widgetSelectedGroupBox.show()
+            if self.currentExecutable:
+                self.layout.removeWidget(self.currentExecutable.widgetRepresentation())
+                self.currentExecutable.widgetRepresentation().hide()
+            self.currentExecutable = getattr(slicer.modules, self.executableSelector.currentText.lower())
+            self.widgetSelectedGroupBoxLayout.addWidget(self.currentExecutable.widgetRepresentation())
+
+            #  Adjust height
+            self.currentExecutable.widgetRepresentation().setFixedHeight(350)
+
+            # Change Apply connection to send a remote task
+            applyButton = self.currentExecutable.widgetRepresentation().ApplyPushButton
+            self.currentExecutable.widgetRepresentation().show()
+            applyButton.disconnect(applyButton,'clicked()')
+            applyButton.connect('clicked(bool)', self.createJobFromModule)
+
+    def createJobFromModule(self):
+        cli = {}
+        if self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode():
+            node = self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode()
+            cli = {
+                "executable": self.executableSelector.currentText.lower(),
+                "parameters": [],
+                "type": "slicer_job",
+                "userEmail": self.DatabaseInteractorLib.getUserEmail(),
+                "executionserver": "default"
+            }
+            for groupIndex in xrange(0, node.GetNumberOfParameterGroups()):
+                for parameterIndex in xrange(0, node.GetNumberOfParametersInGroup(groupIndex)):
+                    if node.GetParameterLongFlag(groupIndex, parameterIndex):
+                        flag = node.GetParameterLongFlag(groupIndex, parameterIndex)
+                    else:
+                        flag = node.GetParameterFlag(groupIndex, parameterIndex)
+                    if flag:
+                        while flag[0] == "-":
+                            flag = flag[1:]
+
+                    value = node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))
+
+                    if node.GetParameterTag(groupIndex, parameterIndex) == "image":
+                        # Write file in a temporary
+                        value = self.fileWriter(slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))),
+                                        os.path.join(slicer.app.temporaryPath))
+                        # self.tokenFilePath = os.path.join(slicer.app.temporaryPath, 'user.slicer_token')
+
+                    cli['parameters'].append({
+                        "flag":flag,
+                        "name": node.GetParameterName(groupIndex, parameterIndex),
+                        # "value": value,
+                        # "type": node.GetParameterTag(groupIndex, parameterIndex)
+                    })
+        import pprint
+        pprint.pprint(cli)
+        if not self.ClusterpostLib.server:
+            self.ClusterpostLib.setServerUrl(self.DatabaseInteractorLib.server[:-1])
+        print self.ClusterpostLib.createJob(cli)
 
 
     # ----------- Calendars ----------- #
@@ -840,6 +939,13 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # if extension in volumeRenderingExtensions:
         if extension in colorsExtensions:
             slicer.util.loadColorTable(filepath)
+
+    def fileWriter(self,node, dirpath):
+        fileName = node.GetName()
+        if "LabelMap" in node.GetClassName():
+            extension = '.gipl.gz'
+        slicer.util.saveNode(node,os.path.join(dirpath,fileName + extension))
+        return os.path.join(dirpath,fileName + extension)
 
     # Function used to clear the layout which displays the checkboxes for upload
     def clearCheckBoxList(self):
