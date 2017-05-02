@@ -52,6 +52,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.moduleName = 'DatabaseInteractor'
         scriptedModulesPath = eval('slicer.modules.%s.path' % self.moduleName.lower())
         scriptedModulesPath = os.path.dirname(scriptedModulesPath)
+        self.timer = qt.QTimer()
+        self.timer.timeout.connect(self.overflow)
 
         # ---------------------------------------------------------------- #
         # ---------------- Definition of the UI interface ---------------- #
@@ -321,7 +323,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.managementFormLayout.addRow(self.createButton)
 
         # -------------------------------------------------------------- #
-        # -------- Definition of task creator collapsible button ------ #
+        # -------- Definition of task creator collapsible button ------- #
         # -------------------------------------------------------------- #
         # Collapsible button
         self.taskCreatorCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -340,6 +342,79 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.currentExecutable = None
         # self.condyleClassificationCollapsibleButton.hide()
 
+        # -------------------------------------------------------------- #
+        # --------------- Rigid Alignment Temporary widget ------------- #
+        # -------------------------------------------------------------- #
+        self.rigidAlignmentWidget = qt.QWidget()
+        self.rigidAlignmentWidgetLayout = qt.QFormLayout(self.rigidAlignmentWidget)
+
+        self.meshDirectoryToAlignSelector = ctk.ctkDirectoryButton()
+
+        self.landmarkDirectoryToAlignSlector = ctk.ctkDirectoryButton()
+
+        self.referenceSphereSelector = slicer.qMRMLNodeComboBox()
+        self.referenceSphereSelector.nodeTypes = (("vtkMRMLModelNode"), "")
+        self.referenceSphereSelector.addEnabled = False
+        self.referenceSphereSelector.removeEnabled = False
+        self.referenceSphereSelector.setMRMLScene(slicer.mrmlScene)
+
+        self.rigidAlignmentApplyButton = qt.QPushButton("Apply")
+
+        self.rigidAlignmentWidgetLayout.addRow("Shapes to align:", self.meshDirectoryToAlignSelector)
+        self.rigidAlignmentWidgetLayout.addRow("Corresponding landmarks:", self.landmarkDirectoryToAlignSlector)
+        self.rigidAlignmentWidgetLayout.addRow("Reference sphere:", self.referenceSphereSelector)
+        
+        self.rigidAlignmentApplyButtonLayout = qt.QVBoxLayout()
+        self.rigidAlignmentApplyButtonLayout.addWidget(self.rigidAlignmentApplyButton, 0, 2)
+
+        self.rigidAlignmentWidgetLayout.addRow(self.rigidAlignmentApplyButtonLayout)
+
+        self.rigidalignment = slicer.qSlicerCLIModule()
+        # self.rigidalignment.widgetRepresentation() =
+
+        # -------------------------------------------------------------- #
+        # ------------- Job computing collapsible button --------------- #
+        # -------------------------------------------------------------- #
+        # Collapsible button
+        self.jobComputerCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.jobComputerCollapsibleButton.text = "Auto compute tasks"
+        self.layout.addWidget(self.jobComputerCollapsibleButton)
+        self.jobComputerCollapsibleFormLayout = qt.QFormLayout(self.jobComputerCollapsibleButton)
+
+        self.jobComputerHostInput = qt.QLineEdit()
+        self.jobComputerPortInput = qt.QLineEdit()
+
+        self.jobComputerParametersLayout = qt.QHBoxLayout()
+        self.jobComputerParametersLayout.addWidget(qt.QLabel("Host: "))
+        self.jobComputerParametersLayout.addWidget(self.jobComputerHostInput)
+        self.jobComputerParametersLayout.addWidget(qt.QLabel("Port: "))
+        self.jobComputerParametersLayout.addWidget(self.jobComputerPortInput)
+
+        self.jobComputerCollapsibleFormLayout.addRow(self.jobComputerParametersLayout)
+
+        # Connect Socket Button
+        self.connectListenerButton = qt.QPushButton("Connect")
+
+        # Disconnect Socket Button
+        self.disconnectListenerButton = qt.QPushButton("Disconnect")
+
+        # HBox Layout for (dis)connection buttons
+        self.connectionHBoxLayout = qt.QHBoxLayout()
+        self.connectionHBoxLayout.addWidget(self.connectListenerButton)
+        self.connectionHBoxLayout.addWidget(self.disconnectListenerButton)
+
+        self.jobComputerCollapsibleFormLayout.addRow(self.connectionHBoxLayout)
+
+        # Websocket Console
+        self.displayConsole = qt.QTextEdit()
+        self.displayConsole.readOnly = True
+        self.displayConsole.setStyleSheet(
+            "color: white;"
+            "background-color: black;"
+            "font-family: Courier;font-style: normal;font-size: 12pt;"
+        )
+        self.jobComputerCollapsibleFormLayout.addRow(self.displayConsole)
+
         # Add vertical spacer
         self.layout.addStretch(1)
 
@@ -354,6 +429,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.downloadCollectionButton.connect('clicked(bool)', self.onDownloadCollectionButton)
         self.uploadButton.connect('clicked(bool)', self.onUploadButton)
         self.createButton.connect('clicked(bool)', self.onCreateButton)
+        self.connectListenerButton.connect('clicked(bool)', self.onConnectListenerButton)
+        self.disconnectListenerButton.connect('clicked(bool)', self.onDiconnectListenerButton)
 
         # Radio Buttons
         self.downloadRadioButtonPatientOnly.toggled.connect(self.onRadioButtontoggled)
@@ -616,6 +693,17 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         file.close()
         self.fillSelectorWithPatients()
 
+    def onConnectListenerButton(self):
+        self.timer.start(1000)
+
+    def onDiconnectListenerButton(self):
+        self.timer.stop()
+
+    def overflow(self):
+        self.timer.stop()
+        print ">>>>>>>>>>>>>>>>"
+        self.timer.start(1000)
+
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
     def onRadioButtontoggled(self):
@@ -785,14 +873,23 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             applyButton.disconnect(applyButton,'clicked()')
             applyButton.connect('clicked(bool)', self.createJobFromModule)
 
+        if self.executableSelector.currentText == "RigidAlignment":
+            self.widgetSelectedGroupBox.show()
+            if self.currentExecutable:
+                self.layout.removeWidget(self.currentExecutable.widgetRepresentation())
+                self.currentExecutable.widgetRepresentation().hide()
+            self.currentExecutable = self.rigidalignment
+            self.widgetSelectedGroupBoxLayout.addWidget(self.currentExecutable.widgetRepresentation())
+
     def createJobFromModule(self):
         cli = {}
+        attachments = []
         if self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode():
             node = self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode()
             cli = {
                 "executable": self.executableSelector.currentText.lower(),
                 "parameters": [],
-                "type": "slicer_job",
+                "type": "job",
                 "userEmail": self.DatabaseInteractorLib.getUserEmail(),
                 "executionserver": "default"
             }
@@ -802,21 +899,24 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                         flag = node.GetParameterLongFlag(groupIndex, parameterIndex)
                     else:
                         flag = node.GetParameterFlag(groupIndex, parameterIndex)
-                    if flag:
-                        while flag[0] == "-":
-                            flag = flag[1:]
+                    # if flag:
+                    #     while flag[0] == "-":
+                    #         flag = flag[1:]
 
                     value = node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))
 
                     if node.GetParameterTag(groupIndex, parameterIndex) == "image":
                         # Write file in a temporary
-                        value = self.fileWriter(slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))),
+                        path = self.fileWriter(slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))),
                                         os.path.join(slicer.app.temporaryPath))
+                        attachments.append(path)
+                        value = os.path.basename(path)
                         # self.tokenFilePath = os.path.join(slicer.app.temporaryPath, 'user.slicer_token')
 
                     cli['parameters'].append({
-                        "flag":flag,
-                        "name": node.GetParameterName(groupIndex, parameterIndex),
+                        "flag": flag,
+                        "name": value
+                        # "name": node.GetParameterName(groupIndex, parameterIndex),
                         # "value": value,
                         # "type": node.GetParameterTag(groupIndex, parameterIndex)
                     })
@@ -824,7 +924,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         pprint.pprint(cli)
         if not self.ClusterpostLib.server:
             self.ClusterpostLib.setServerUrl(self.DatabaseInteractorLib.server[:-1])
-        print self.ClusterpostLib.createJob(cli)
+        print self.ClusterpostLib.createAndSubmitJob(cli,attachments)
 
 
     # ----------- Calendars ----------- #
