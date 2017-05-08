@@ -998,7 +998,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                         # Write file in a temporary
                         IOnode = slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex)))
                         path = self.nodeWriter(IOnode, slicer.app.temporaryPath)
-                        attachments.append(path)
                         value = os.path.basename(path)
 
                     channel = node.GetParameterChannel(groupIndex, parameterIndex)
@@ -1007,6 +1006,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                             cli["inputs"].append({
                                 "name": value
                             })
+                            attachments.append(path)
                         else:
                             if os.path.isdir(path):
                                 type = 'directory'
