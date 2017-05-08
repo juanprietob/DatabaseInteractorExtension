@@ -1,7 +1,7 @@
 DatabaseInteractor
 ==================
 
-##What is it?
+## What is it?
 
 This extension contains multiple panels that allow the user to manage data from a CouchDB database stored on a server. It has been developed to work with this [website](https://ec2-52-42-49-63.us-west-2.compute.amazonaws.com:8180/DCBIA-OrthoLab/public/), so the user will need to have an account on the website. 
 The data currently stored on this website is for a pilot study which needs to federate biological, morphological and clinical data. At the end of the development of the website, this should be available for other projects. 
@@ -17,10 +17,10 @@ Main functionalities are:
 This extensions uses **requests** library for python (*http://docs.python-requests.org/en/master/*) that ease doing http requests.
 For more information about the website linked to this project, visit [Github](https://github.com/NIRALUser/shiny-tooth).
 
-##License
+## License
 
 See License.txt for information on using and contributing.
 
-##Source code
+## Source code
 
 Find the source code on [Github](https://github.com/DCBIA-OrthoLab/DatabaseInteractorExtension).
