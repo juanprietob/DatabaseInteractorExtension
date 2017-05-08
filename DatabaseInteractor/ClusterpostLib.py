@@ -160,6 +160,18 @@ class ClusterpostLib():
                 if(output["type"] == "file"):
                     self.getAttachment(job["_id"], output["name"], os.path.join(outputdir, output["name"]), "blob")
 
+    def updateJobStatus(self, jobid, status):
+        res = self.getJob(jobid)
+        res["jobstatus"] = {
+            "status": status
+        }
+        r = requests.put(url=self.server + "/dataprovider",
+            auth=self.auth,
+            verify=self.verify,
+            data=json.dumps(res))
+
+        return r.json()
+
 
 class JWTAuth(requests.auth.AuthBase):
     def __init__(self, token):
