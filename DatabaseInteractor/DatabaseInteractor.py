@@ -994,19 +994,23 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     path = ''
                     tag = node.GetParameterTag(groupIndex, parameterIndex)
 
-                    if tag == "image" or tag == "table" or tag == "geometry":
+                    if tag == "image" or tag == "table" or tag == "geometry" or tag == "transform":
                         # Write file in a temporary
                         IOnode = slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex)))
-                        path = self.nodeWriter(IOnode, slicer.app.temporaryPath)
+                        if IOnode:
+                            path = self.nodeWriter(IOnode, slicer.app.temporaryPath)
                         value = os.path.basename(path)
 
+                    if tag == "file":
+                        path = node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))
+
                     channel = node.GetParameterChannel(groupIndex, parameterIndex)
-                    if channel:
+                    if channel and path:
                         if channel == "input":
+                            attachments.append(path)
                             cli["inputs"].append({
                                 "name": value
                             })
-                            attachments.append(path)
                         else:
                             if os.path.isdir(path):
                                 type = 'directory'
@@ -1155,6 +1159,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             extension = '.mrml'
         if "ModelNode" in node.GetClassName():
             extension = '.vtk'
+        if "Transform" in node.GetClassName():
+            extension = ".mat"
 
         write = slicer.util.saveNode(node,os.path.join(dirpath,fileName + extension))
         if not write and extension == ".mrml":
