@@ -391,12 +391,20 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.jobComputerHostInput.setReadOnly(True)
         self.jobComputerPortInput = qt.QLineEdit()
         self.jobComputerPortInput.setReadOnly(True)
+        self.jobComputerPortInput = qt.QLineEdit()
+        self.jobComputerPortInput.setReadOnly(True)
+        self.timePeriodSelector = qt.QDoubleSpinBox()
+        self.timePeriodSelector.setSuffix(' min')
+        self.timePeriodSelector.setRange(1,1440)
+        self.timePeriodSelector.setDecimals(0)
 
         self.jobComputerParametersLayout = qt.QHBoxLayout()
         self.jobComputerParametersLayout.addWidget(qt.QLabel("Host: "))
         self.jobComputerParametersLayout.addWidget(self.jobComputerHostInput)
         self.jobComputerParametersLayout.addWidget(qt.QLabel("Port: "))
         self.jobComputerParametersLayout.addWidget(self.jobComputerPortInput)
+        self.jobComputerParametersLayout.addWidget(qt.QLabel("Period: "))
+        self.jobComputerParametersLayout.addWidget(self.timePeriodSelector)
 
         self.jobComputerCollapsibleFormLayout.addRow(self.jobComputerParametersLayout)
 
@@ -720,6 +728,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.fillSelectorWithPatients()
 
     def onConnectListenerButton(self):
+        self.timerPeriod = int(self.timePeriodSelector.value)
         self.timer.start(self.timerPeriod)
         self.connectListenerButton.enabled = False
         self.disconnectListenerButton.enabled = True
