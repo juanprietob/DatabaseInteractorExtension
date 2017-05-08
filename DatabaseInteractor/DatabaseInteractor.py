@@ -3,6 +3,8 @@ from slicer.ScriptedLoadableModule import *
 import json
 import logging
 import os
+import subprocess
+from urlparse import urlparse
 
 
 #
@@ -55,7 +57,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
         self.timer = qt.QTimer()
         self.timer.timeout.connect(self.overflow)
-        self.timerPeriod = 60 * 1000
+        self.timerPeriod = 60 * 60 * 1000
 
         # ---------------------------------------------------------------- #
         # ---------------- Definition of the UI interface ---------------- #
@@ -374,6 +376,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.rigidalignment = slicer.qSlicerCLIModule()
         # self.rigidalignment.widgetRepresentation() =
 
+        self.taskCreatorCollapsibleButton.hide()
+
         # -------------------------------------------------------------- #
         # ------------- Job computing collapsible button --------------- #
         # -------------------------------------------------------------- #
@@ -384,7 +388,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.jobComputerCollapsibleFormLayout = qt.QFormLayout(self.jobComputerCollapsibleButton)
 
         self.jobComputerHostInput = qt.QLineEdit()
+        self.jobComputerHostInput.setReadOnly(True)
         self.jobComputerPortInput = qt.QLineEdit()
+        self.jobComputerPortInput.setReadOnly(True)
 
         self.jobComputerParametersLayout = qt.QHBoxLayout()
         self.jobComputerParametersLayout.addWidget(qt.QLabel("Host: "))
@@ -399,6 +405,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
         # Disconnect Socket Button
         self.disconnectListenerButton = qt.QPushButton("Disconnect")
+        self.disconnectListenerButton.enabled = False
 
         # HBox Layout for (dis)connection buttons
         self.connectionHBoxLayout = qt.QHBoxLayout()
@@ -416,6 +423,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             "font-family: Courier;font-style: normal;font-size: 12pt;"
         )
         self.jobComputerCollapsibleFormLayout.addRow(self.displayConsole)
+
+        self.jobComputerCollapsibleButton.hide()
 
         # Add vertical spacer
         self.layout.addStretch(1)
@@ -478,7 +487,12 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.fillSelectorWithCollections()
                 self.downloadCollapsibleButton.show()
                 self.uploadCollapsibleButton.show()
+                self.taskCreatorCollapsibleButton.show()
+                self.jobComputerCollapsibleButton.show()
                 self.fillExecutableSelector()
+                server = self.DatabaseInteractorLib.server
+                self.jobComputerHostInput.text = urlparse(server).hostname
+                self.jobComputerPortInput.text = urlparse(server).port
                 if "admin" in self.DatabaseInteractorLib.getUserScope():
                     self.managementCollapsibleButton.show()
 
@@ -493,6 +507,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.DatabaseInteractorLib.setServer(self.serverInput.text, self.serverFilePath)
         self.ClusterpostLib.setServerUrl(self.serverInput.text[:-1])
         token, error = self.DatabaseInteractorLib.connect(self.emailInput.text, self.passwordInput.text)
+        print error
         if token != -1:
             userScope = self.DatabaseInteractorLib.getUserScope()
             if len(userScope) != 1 or "default" not in userScope:
@@ -509,6 +524,11 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.downloadCollapsibleButton.show()
                 self.uploadCollapsibleButton.show()
                 self.managementCollapsibleButton.show()
+                self.taskCreatorCollapsibleButton.show()
+                self.jobComputerCollapsibleButton.show()
+                self.fillExecutableSelector()
+                self.jobComputerHostInput.text = urlparse(self.serverInput.text).hostname
+                self.jobComputerPortInput.text = urlparse(self.serverInput.text).port
                 if "admin" not in userScope:
                     self.managementCollapsibleButton.hide()
 
@@ -521,6 +541,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
     # Function used to disconnect user to the database
     def onDisconnectionButton(self):
+        self.serverInput.text = self.DatabaseInteractorLib.server
+        self.emailInput.text = self.DatabaseInteractorLib.getUserEmail()
         self.DatabaseInteractorLib.disconnect()
         self.connected = False
         self.passwordInput.text = ''
@@ -531,6 +553,8 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.downloadCollapsibleButton.hide()
         self.uploadCollapsibleButton.hide()
         self.managementCollapsibleButton.hide()
+        self.taskCreatorCollapsibleButton.hide()
+        self.jobComputerCollapsibleButton.hide()
         # Erase token from file
         with open(self.tokenFilePath, "w"):
             pass
@@ -697,15 +721,59 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
     def onConnectListenerButton(self):
         self.timer.start(self.timerPeriod)
+        self.connectListenerButton.enabled = False
+        self.disconnectListenerButton.enabled = True
 
     def onDiconnectListenerButton(self):
         self.timer.stop()
+        self.connectListenerButton.enabled = True
+        self.disconnectListenerButton.enabled = False
 
     def overflow(self):
         self.timer.stop()
         print ">>>>>>>>>>>>>>>>"
-        print self.ClusterpostLib.getJobs(jobstatus='QUEUE')
+        jobs = self.ClusterpostLib.getJobs(jobstatus='QUEUE')
+        if jobs:
+            self.runJob(jobs[0])
         self.timer.start(self.timerPeriod)
+
+    def runJob(self, job):
+        if hasattr(slicer.modules, job["executable"].lower()):
+            executableNode = getattr(slicer.modules, job["executable"].lower())
+            command = list()
+            command.append(executableNode.path)
+            for parameter in job["parameters"]:
+                if not parameter["name"] == "" and not parameter["flag"] == "":
+                    if parameter["name"] == "true":
+                        command.append(parameter["flag"])
+                    elif not parameter["name"] == "false":
+                        command.append(parameter["flag"])
+                        command.append(parameter["name"])
+                elif parameter["flag"] == "":
+                    command.append(parameter["name"])
+            self.ClusterpostLib.updateJobStatus(job["_id"], "DOWNLOADING")
+            for attachment in job["_attachments"]:
+                self.ClusterpostLib.getAttachment(job["_id"],attachment, os.path.join(slicer.app.temporaryPath, attachment))
+                if attachment in command:
+                    i = command.index(attachment)
+                    command[i] = os.path.join(slicer.app.temporaryPath, attachment)
+            for output in job["outputs"]:
+                file = open(os.path.join(slicer.app.temporaryPath, output["name"]),'w+')
+                file.close()
+                if output["name"] in command:
+                    i = command.index(output["name"])
+                    command[i] = os.path.join(slicer.app.temporaryPath, output["name"])
+            print command
+            self.ClusterpostLib.updateJobStatus(job["_id"], "RUN")
+            p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+            out, err = p.communicate()
+            self.displayConsole.append(out)
+            self.displayConsole.append(err)
+            self.ClusterpostLib.updateJobStatus(job["_id"], "UPLOADING")
+            outputs = []
+            for output in job["outputs"]:
+                self.ClusterpostLib.addAttachment(job["_id"],os.path.join(slicer.app.temporaryPath,output["name"]))
+            print self.ClusterpostLib.updateJobStatus(job["_id"],"DONE")
 
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
@@ -890,8 +958,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         if self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode():
             node = self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode()
             cli = {
-                "executable": self.executableSelector.currentText.lower(),
+                "executable": self.executableSelector.currentText,
                 "parameters": [],
+                "inputs": [],
+                "outputs": [],
                 "type": "job",
                 "userEmail": self.DatabaseInteractorLib.getUserEmail(),
                 "executionserver": "default"
@@ -900,22 +970,43 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 for parameterIndex in xrange(0, node.GetNumberOfParametersInGroup(groupIndex)):
                     if node.GetParameterLongFlag(groupIndex, parameterIndex):
                         flag = node.GetParameterLongFlag(groupIndex, parameterIndex)
+                        if flag:
+                            while flag[0] == "-":
+                                flag = flag[1:]
+                            flag = "--" + flag
                     else:
                         flag = node.GetParameterFlag(groupIndex, parameterIndex)
-                    # if flag:
-                    #     while flag[0] == "-":
-                    #         flag = flag[1:]
+                        if flag:
+                            while flag[0] == "-":
+                                flag = flag[1:]
+                            flag = "-" + flag
 
                     value = node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))
+                    path = ''
+                    tag = node.GetParameterTag(groupIndex, parameterIndex)
 
-                    if node.GetParameterTag(groupIndex, parameterIndex) == "image":
+                    if tag == "image" or tag == "table" or tag == "geometry":
                         # Write file in a temporary
-                        path = self.fileWriter(slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))),
-                                        os.path.join(slicer.app.temporaryPath))
+                        IOnode = slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex)))
+                        path = self.nodeWriter(IOnode, slicer.app.temporaryPath)
                         attachments.append(path)
                         value = os.path.basename(path)
-                        # self.tokenFilePath = os.path.join(slicer.app.temporaryPath, 'user.slicer_token')
 
+                    channel = node.GetParameterChannel(groupIndex, parameterIndex)
+                    if channel:
+                        if channel == "input":
+                            cli["inputs"].append({
+                                "name": value
+                            })
+                        else:
+                            if os.path.isdir(path):
+                                type = 'directory'
+                            else:
+                                type = 'file'
+                            cli["outputs"].append({
+                                "type": type,
+                                "name": value
+                            })
                     cli['parameters'].append({
                         "flag": flag,
                         "name": value
@@ -927,7 +1018,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         pprint.pprint(cli)
         if not self.ClusterpostLib.server:
             self.ClusterpostLib.setServerUrl(self.DatabaseInteractorLib.server[:-1])
-        print self.ClusterpostLib.createAndSubmitJob(cli,attachments)
+        self.ClusterpostLib.createAndSubmitJob(cli, attachments)
+
+
 
 
     # ----------- Calendars ----------- #
@@ -1043,11 +1136,20 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         if extension in colorsExtensions:
             slicer.util.loadColorTable(filepath)
 
-    def fileWriter(self,node, dirpath):
+    def nodeWriter(self, node, dirpath):
         fileName = node.GetName()
-        if "LabelMap" in node.GetClassName():
+        if "LabelMap" in node.GetClassName() or "ScalarVolume" in node.GetClassName():
             extension = '.gipl.gz'
-        slicer.util.saveNode(node,os.path.join(dirpath,fileName + extension))
+        if "ColorTable" in node.GetClassName():
+            extension = '.txt'
+        if "ModelHierarchy" in node.GetClassName():
+            extension = '.mrml'
+        if "ModelNode" in node.GetClassName():
+            extension = '.vtk'
+
+        write = slicer.util.saveNode(node,os.path.join(dirpath,fileName + extension))
+        if not write and extension == ".mrml":
+            slicer.util.saveScene(os.path.join(dirpath, fileName + extension))
         return os.path.join(dirpath,fileName + extension)
 
     # Function used to clear the layout which displays the checkboxes for upload
