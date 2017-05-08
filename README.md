@@ -13,7 +13,7 @@ Main functionalities are:
 - Upload data stored in a local folder to the database
 - Manage database architecture
 
-##Technologies used
+## Technologies used
 This extensions uses **requests** library for python (*http://docs.python-requests.org/en/master/*) that ease doing http requests.
 For more information about the website linked to this project, visit [Github](https://github.com/NIRALUser/shiny-tooth).
 
