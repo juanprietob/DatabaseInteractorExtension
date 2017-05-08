@@ -728,7 +728,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.fillSelectorWithPatients()
 
     def onConnectListenerButton(self):
-        self.timerPeriod = int(self.timePeriodSelector.value)
+        self.timerPeriod = int(self.timePeriodSelector.value) * 60 * 1000
         self.timer.start(self.timerPeriod)
         self.connectListenerButton.enabled = False
         self.disconnectListenerButton.enabled = True
@@ -779,7 +779,12 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.displayConsole.append(out)
             self.displayConsole.append(err)
             self.ClusterpostLib.updateJobStatus(job["_id"], "UPLOADING")
-            outputs = []
+            with open(os.path.join(slicer.app.temporaryPath, 'stdout.out'), 'w') as f:
+                f.write(out)
+            with open(os.path.join(slicer.app.temporaryPath, 'stderr.err'), 'w') as f:
+                f.write(err)
+            self.ClusterpostLib.addAttachment(job["_id"], os.path.join(slicer.app.temporaryPath, 'stdout.out'))
+            self.ClusterpostLib.addAttachment(job["_id"], os.path.join(slicer.app.temporaryPath, 'stderr.err'))
             for output in job["outputs"]:
                 self.ClusterpostLib.addAttachment(job["_id"],os.path.join(slicer.app.temporaryPath,output["name"]))
             print self.ClusterpostLib.updateJobStatus(job["_id"],"DONE")
