@@ -2,7 +2,7 @@ from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import json
 import logging
-import os
+import os, sys, shutil
 import subprocess
 from urlparse import urlparse
 
@@ -54,7 +54,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.moduleName = 'DatabaseInteractor'
         scriptedModulesPath = eval('slicer.modules.%s.path' % self.moduleName.lower())
         scriptedModulesPath = os.path.dirname(scriptedModulesPath)
-        self.modulesLoaded = []
+        self.modulesLoaded = dict()
 
         self.timer = qt.QTimer()
         self.timer.timeout.connect(self.overflow)
@@ -481,7 +481,12 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         pass
 
     def exit(self):
-        print "EXIT"
+        for moduleName, slot in self.modulesLoaded.iteritems():
+            node = getattr(slicer.modules, moduleName)
+            applyButton = node.widgetRepresentation().ApplyPushButton
+            applyButton.disconnect(applyButton, 'clicked(bool)')
+            applyButton.connect('clicked(bool)', slot)
+        self.modulesLoaded = dict()
 
     # ------------ Buttons -------------- #
     # Function used to connect user to the database and store token in a file
@@ -721,6 +726,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.timer.start(self.timerPeriod)
 
     def runJob(self, job):
+        jobpath = os.path.join(slicer.app.temporaryPath, job["_id"])
+        if os.path.exists(jobpath):
+            shutil.rmtree(jobpath)
+        os.makedirs(jobpath)
         if hasattr(slicer.modules, job["executable"].lower()):
             executableNode = getattr(slicer.modules, job["executable"].lower())
             command = list()
@@ -739,32 +748,44 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     command.append(parameter["name"])
             self.ClusterpostLib.updateJobStatus(job["_id"], "DOWNLOADING")
             for attachment in job["_attachments"]:
-                self.ClusterpostLib.getAttachment(job["_id"],attachment, os.path.join(slicer.app.temporaryPath, attachment))
+                self.ClusterpostLib.getAttachment(job["_id"],attachment, os.path.join(jobpath, attachment))
                 if attachment in command:
                     i = command.index(attachment)
-                    command[i] = os.path.join(slicer.app.temporaryPath, attachment)
+                    command[i] = os.path.join(jobpath, attachment)
             for output in job["outputs"]:
-                file = open(os.path.join(slicer.app.temporaryPath, output["name"]),'w+')
+                file = open(os.path.join(jobpath, output["name"]),'w+')
                 file.close()
                 if output["name"] in command:
                     i = command.index(output["name"])
-                    command[i] = os.path.join(slicer.app.temporaryPath, output["name"])
+                    command[i] = os.path.join(jobpath, output["name"])
             print command
             self.ClusterpostLib.updateJobStatus(job["_id"], "RUN")
-            p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-            out, err = p.communicate()
-            self.displayConsole.append(out)
-            self.displayConsole.append(err)
-            self.ClusterpostLib.updateJobStatus(job["_id"], "UPLOADING")
-            with open(os.path.join(slicer.app.temporaryPath, 'stdout.out'), 'w') as f:
-                f.write(out)
-            with open(os.path.join(slicer.app.temporaryPath, 'stderr.err'), 'w') as f:
-                f.write(err)
-            self.ClusterpostLib.addAttachment(job["_id"], os.path.join(slicer.app.temporaryPath, 'stdout.out'))
-            self.ClusterpostLib.addAttachment(job["_id"], os.path.join(slicer.app.temporaryPath, 'stderr.err'))
-            for output in job["outputs"]:
-                self.ClusterpostLib.addAttachment(job["_id"],os.path.join(slicer.app.temporaryPath,output["name"]))
-            print self.ClusterpostLib.updateJobStatus(job["_id"],"DONE")
+            try:
+                p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+                out, err = p.communicate()
+                self.displayConsole.append(out)
+                self.displayConsole.append(err)
+                self.ClusterpostLib.updateJobStatus(job["_id"], "UPLOADING")
+                with open(os.path.join(jobpath, 'stdout.out'), 'w') as f:
+                    f.write(out)
+                with open(os.path.join(jobpath, 'stderr.err'), 'w') as f:
+                    f.write(err)
+                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stdout.out'))
+                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stderr.err'))
+                outputSize = []
+                for output in job["outputs"]:
+                    self.ClusterpostLib.addAttachment(job["_id"],
+                                                      os.path.join(jobpath, output["name"]))
+                    outputSize.append(os.stat(os.path.join(jobpath, output["name"])).st_size)
+                if 0 in outputSize:
+                    self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
+                else:
+                    self.ClusterpostLib.updateJobStatus(job["_id"], "DONE")
+            except Exception as e:
+                with open(os.path.join(jobpath, 'stderr.err'), 'w') as f:
+                    f.write(str(e))
+                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stderr.err'))
+                self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
 
     # ---------- Radio Buttons ---------- #
     # Function used to display interface corresponding to the query checked
@@ -866,7 +887,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
     def fillExecutableSelector(self):
         self.modules = {}
         modules = slicer.modules.__dict__.keys()
-        self.executableSelector.addItem("RigidAlignment")
         for moduleName in modules:
             module = getattr(slicer.modules, moduleName)
             if hasattr(module, "cliModuleLogic"):
@@ -919,7 +939,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
     def executableSelected(self):
         if hasattr(slicer.modules, self.executableSelector.currentText.lower()):
-            self.modulesLoaded.append(self.executableSelector.currentText.lower())
+            self.modulesLoaded[str(self.executableSelector.currentText.lower())] = getattr(slicer.modules, self.executableSelector.currentText.lower()).widgetRepresentation().apply
             self.widgetSelectedGroupBox.show()
             if self.currentExecutable:
                 self.layout.removeWidget(self.currentExecutable.widgetRepresentation())
