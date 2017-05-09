@@ -54,6 +54,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.moduleName = 'DatabaseInteractor'
         scriptedModulesPath = eval('slicer.modules.%s.path' % self.moduleName.lower())
         scriptedModulesPath = os.path.dirname(scriptedModulesPath)
+        self.modulesLoaded = []
 
         self.timer = qt.QTimer()
         self.timer.timeout.connect(self.overflow)
@@ -346,36 +347,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.currentExecutable = None
         # self.condyleClassificationCollapsibleButton.hide()
 
-        # -------------------------------------------------------------- #
-        # --------------- Rigid Alignment Temporary widget ------------- #
-        # -------------------------------------------------------------- #
-        self.rigidAlignmentWidget = qt.QWidget()
-        self.rigidAlignmentWidgetLayout = qt.QFormLayout(self.rigidAlignmentWidget)
-
-        self.meshDirectoryToAlignSelector = ctk.ctkDirectoryButton()
-
-        self.landmarkDirectoryToAlignSlector = ctk.ctkDirectoryButton()
-
-        self.referenceSphereSelector = slicer.qMRMLNodeComboBox()
-        self.referenceSphereSelector.nodeTypes = (("vtkMRMLModelNode"), "")
-        self.referenceSphereSelector.addEnabled = False
-        self.referenceSphereSelector.removeEnabled = False
-        self.referenceSphereSelector.setMRMLScene(slicer.mrmlScene)
-
-        self.rigidAlignmentApplyButton = qt.QPushButton("Apply")
-
-        self.rigidAlignmentWidgetLayout.addRow("Shapes to align:", self.meshDirectoryToAlignSelector)
-        self.rigidAlignmentWidgetLayout.addRow("Corresponding landmarks:", self.landmarkDirectoryToAlignSlector)
-        self.rigidAlignmentWidgetLayout.addRow("Reference sphere:", self.referenceSphereSelector)
-        
-        self.rigidAlignmentApplyButtonLayout = qt.QVBoxLayout()
-        self.rigidAlignmentApplyButtonLayout.addWidget(self.rigidAlignmentApplyButton, 0, 2)
-
-        self.rigidAlignmentWidgetLayout.addRow(self.rigidAlignmentApplyButtonLayout)
-
-        self.rigidalignment = slicer.qSlicerCLIModule()
-        # self.rigidalignment.widgetRepresentation() =
-
         self.taskCreatorCollapsibleButton.hide()
 
         # -------------------------------------------------------------- #
@@ -508,6 +479,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
     def cleanup(self):
         pass
+
+    def exit(self):
+        print "EXIT"
 
     # ------------ Buttons -------------- #
     # Function used to connect user to the database and store token in a file
@@ -750,7 +724,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         if hasattr(slicer.modules, job["executable"].lower()):
             executableNode = getattr(slicer.modules, job["executable"].lower())
             command = list()
-            command.append(executableNode.path)
+            if not os.path.basename(executableNode.path).find('.'):
+                command.append(executableNode.path)
+            else:
+                command.append(os.path.join(executableNode.path,'..',executableNode.name))
             for parameter in job["parameters"]:
                 if not parameter["name"] == "" and not parameter["flag"] == "":
                     if parameter["name"] == "true":
@@ -942,6 +919,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
     def executableSelected(self):
         if hasattr(slicer.modules, self.executableSelector.currentText.lower()):
+            self.modulesLoaded.append(self.executableSelector.currentText.lower())
             self.widgetSelectedGroupBox.show()
             if self.currentExecutable:
                 self.layout.removeWidget(self.currentExecutable.widgetRepresentation())
@@ -957,14 +935,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.currentExecutable.widgetRepresentation().show()
             applyButton.disconnect(applyButton,'clicked()')
             applyButton.connect('clicked(bool)', self.createJobFromModule)
-
-        if self.executableSelector.currentText == "RigidAlignment":
-            self.widgetSelectedGroupBox.show()
-            if self.currentExecutable:
-                self.layout.removeWidget(self.currentExecutable.widgetRepresentation())
-                self.currentExecutable.widgetRepresentation().hide()
-            self.currentExecutable = self.rigidalignment
-            self.widgetSelectedGroupBoxLayout.addWidget(self.currentExecutable.widgetRepresentation())
 
     def createJobFromModule(self):
         cli = {}
