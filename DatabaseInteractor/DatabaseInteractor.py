@@ -2,7 +2,7 @@ from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 import json
 import logging
-import os, sys, shutil
+import os, shutil, zipfile
 import subprocess
 from urlparse import urlparse
 
@@ -733,10 +733,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         if hasattr(slicer.modules, job["executable"].lower()):
             executableNode = getattr(slicer.modules, job["executable"].lower())
             command = list()
-            if not os.path.basename(executableNode.path).find('.'):
+            if not os.path.basename(executableNode.path).find('.') == -1:
                 command.append(executableNode.path)
             else:
-                command.append(os.path.join(executableNode.path,'..',executableNode.name))
+                command.append(os.path.join(os.path.dirname(executableNode.path), executableNode.name))
             for parameter in job["parameters"]:
                 if not parameter["name"] == "" and not parameter["flag"] == "":
                     if parameter["name"] == "true":
@@ -752,12 +752,28 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 if attachment in command:
                     i = command.index(attachment)
                     command[i] = os.path.join(jobpath, attachment)
+            directory = False
             for output in job["outputs"]:
-                file = open(os.path.join(jobpath, output["name"]),'w+')
-                file.close()
-                if output["name"] in command:
-                    i = command.index(output["name"])
-                    command[i] = os.path.join(jobpath, output["name"])
+                if output['type'] == 'directory':
+                    if os.path.basename(output["name"]):
+                        if output["name"] in command:
+                            i = command.index(output["name"])
+                            command[i] = os.path.join(jobpath, os.path.basename(output["name"]))
+                        folderName = os.path.basename(output["name"])
+                    else:
+                        if output["name"] in command:
+                            i = command.index(output["name"])
+                            command[i] = os.path.join(jobpath)
+                        folderName = os.path.basename(os.path.dirname(output["name"]))
+                    directory = True
+                else:
+                    file = open(os.path.join(jobpath, output["name"]),'w+')
+                    file.close()
+                    if output["name"] in command:
+                        i = command.index(output["name"])
+                        command[i] = os.path.join(jobpath, output["name"])
+            if directory:
+                filesBeforeComputation = os.listdir(jobpath)
             print command
             self.ClusterpostLib.updateJobStatus(job["_id"], "RUN")
             try:
@@ -765,6 +781,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 out, err = p.communicate()
                 self.displayConsole.append(out)
                 self.displayConsole.append(err)
+                if directory:
+                    filesAfterComputation = os.listdir(jobpath)
+                    filesDifference = list(set(filesAfterComputation) - set(filesBeforeComputation))
                 self.ClusterpostLib.updateJobStatus(job["_id"], "UPLOADING")
                 with open(os.path.join(jobpath, 'stdout.out'), 'w') as f:
                     f.write(out)
@@ -774,9 +793,17 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stderr.err'))
                 outputSize = []
                 for output in job["outputs"]:
+                    if output['type'] == 'file':
+                        self.ClusterpostLib.addAttachment(job["_id"],
+                                                          os.path.join(jobpath, output["name"]))
+                        outputSize.append(os.stat(os.path.join(jobpath, output["name"])).st_size)
+                if directory:
+                    with zipfile.ZipFile(os.path.join(jobpath, folderName + '.zip'), 'w') as myzip:
+                        for file in filesDifference:
+                            myzip.write(os.path.join(jobpath, file),file)
                     self.ClusterpostLib.addAttachment(job["_id"],
-                                                      os.path.join(jobpath, output["name"]))
-                    outputSize.append(os.stat(os.path.join(jobpath, output["name"])).st_size)
+                                                      os.path.join(jobpath, folderName + '.zip'))
+                    outputSize.append(os.stat(os.path.join(jobpath, folderName + '.zip')).st_size)
                 if 0 in outputSize:
                     self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
                 else:
@@ -1007,7 +1034,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                                 "name": value
                             })
                         else:
-                            if os.path.isdir(path):
+                            if os.path.isdir(path) or os.path.basename(path).find('.') == -1:
                                 type = 'directory'
                             else:
                                 type = 'file'
