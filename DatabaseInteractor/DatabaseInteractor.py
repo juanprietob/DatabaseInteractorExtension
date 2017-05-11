@@ -6,7 +6,6 @@ import os, shutil, zipfile
 import subprocess
 from urlparse import urlparse
 
-
 #
 # DatabaseInteractor
 #
@@ -33,17 +32,21 @@ class DatabaseInteractor(slicer.ScriptedLoadableModule.ScriptedLoadableModule):
 
 class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableModuleWidget):
     def setup(self):
+        """ 
+            Function used to setup the UI, global variables and libraries used in this extension 
+        """
         slicer.ScriptedLoadableModule.ScriptedLoadableModuleWidget.setup(self)
-
         # ---------------------------------------------------------------- #
         # ------------------------ Global variables ---------------------- #
         # ---------------------------------------------------------------- #
+
         import DatabaseInteractorLib
-#        reload(DatabaseInteractorLib)
         self.DatabaseInteractorLib = DatabaseInteractorLib.DatabaseInteractorLib()
 
         import ClusterpostLib
         self.ClusterpostLib = ClusterpostLib.ClusterpostLib()
+
+        self.logic = DatabaseInteractorLogic()
 
         self.connected = False
         self.collections = dict()
@@ -56,6 +59,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         scriptedModulesPath = os.path.dirname(scriptedModulesPath)
         self.modulesLoaded = dict()
 
+        # Timer definition
         self.timer = qt.QTimer()
         self.timer.timeout.connect(self.overflow)
         self.timerPeriod = 60 * 60 * 1000
@@ -477,10 +481,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
             file.close()
 
-    def cleanup(self):
-        pass
-
     def exit(self):
+        """ 
+            Function used to reset the CLI widget when exiting the module 
+        """
         for moduleName, slot in self.modulesLoaded.iteritems():
             node = getattr(slicer.modules, moduleName)
             applyButton = node.widgetRepresentation().ApplyPushButton
@@ -489,12 +493,14 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.modulesLoaded = dict()
 
     # ------------ Buttons -------------- #
-    # Function used to connect user to the database and store token in a file
     def onConnectionButton(self):
+        """ 
+            Function used to connect user to the database and store token in a file 
+        """
         self.DatabaseInteractorLib.setServer(self.serverInput.text, self.serverFilePath)
         self.ClusterpostLib.setServerUrl(self.serverInput.text[:-1])
         token, error = self.DatabaseInteractorLib.connect(self.emailInput.text, self.passwordInput.text)
-        print error
+        print(error)
         if token != -1:
             userScope = self.DatabaseInteractorLib.getUserScope()
             if len(userScope) != 1 or "default" not in userScope:
@@ -526,8 +532,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.errorLoginText.text = "Insufficient scope ! Email luciacev@umich.edu for access."
             self.errorLoginText.show()
 
-    # Function used to disconnect user to the database
     def onDisconnectionButton(self):
+        """
+            Function used to disconnect user to the database  
+        """
         self.serverInput.text = self.DatabaseInteractorLib.server
         self.emailInput.text = self.DatabaseInteractorLib.getUserEmail()
         self.DatabaseInteractorLib.disconnect()
@@ -546,8 +554,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         with open(self.tokenFilePath, "w"):
             pass
 
-    # Function used to download data with information provided
     def onDownloadButton(self):
+        """
+            Function used to download data with information provided
+        """
         for items in self.morphologicalData:
             if "_attachments" in items:
                 for attachments in items["_attachments"].keys():
@@ -563,11 +573,12 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         file.close()
 
         # Load the file
-        self.fileLoader(filePath)
-        # slicer.util.loadModel(filePath)
+        self.logic.fileLoader(filePath)
 
-    # Function used to download an entire collection and organise it with folders
     def onDownloadCollectionButton(self):
+        """ 
+            Function used to download an entire collection and organise it with folders
+        """
         collectionPath = os.path.join(self.downloadFilepathSelector.directory,
                                       self.downloadCollectionSelector.currentText)
         # Check if folder already exists
@@ -629,8 +640,11 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.uploadFilepathSelector.directory = collectionPath
         self.managementFilepathSelector.directory = collectionPath
 
-    # Function used to upload a data to the correct patient
     def onUploadButton(self):
+        """
+            Function used to upload a data to the correct patient
+        """
+
         self.checkBoxesChecked()
         for patient in self.checkedList.keys():
             for date in self.checkedList[patient].keys():
@@ -657,8 +671,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.morphologicalData = self.DatabaseInteractorLib.getMorphologicalData(items["_id"]).json()
         self.uploadLabel.show()
 
-    # Function used to create the architecture for a new patient or new date, updating descriptors
     def onCreateButton(self):
+        """
+            Function used to create the architecture for a new patient or new date, updating descriptors
+        """
         collectionPath = self.managementFilepathSelector.directory
         patientId = self.managementPatientSelector.currentText
         date = str(self.createDate.selectedDate)
@@ -707,36 +723,53 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.fillSelectorWithPatients()
 
     def onConnectListenerButton(self):
-        self.timerPeriod = int(self.timePeriodSelector.value) * 60 * 1000
+        """
+            Function used to create a timer with the period selected in the UI
+        """
+        self.timerPeriod = int(self.timePeriodSelector.value) * 60 * 1000 # Timer period is in ms
         self.timer.start(self.timerPeriod)
         self.connectListenerButton.enabled = False
         self.disconnectListenerButton.enabled = True
 
     def onDiconnectListenerButton(self):
+        """
+            Function used to stop the timer and the job listening
+        """
         self.timer.stop()
         self.connectListenerButton.enabled = True
         self.disconnectListenerButton.enabled = False
 
     def overflow(self):
+        """
+            Function triggered by the overflow of the timer  
+        """
         self.timer.stop()
-        print ">>>>>>>>>>>>>>>>"
+        print(">>>>>>>>>>>>>>>>")
+        # Retrieve the jobs to be computed in the database
         jobs = self.ClusterpostLib.getJobs(jobstatus='QUEUE')
         if jobs:
             self.runJob(jobs[0])
         self.timer.start(self.timerPeriod)
 
     def runJob(self, job):
+        """
+            Function used to run a job and send it back to the server 
+        """
+        # Creates a folder to store IO for the job. Folder is in Slicer temporary path and named with job id
         jobpath = os.path.join(slicer.app.temporaryPath, job["_id"])
         if os.path.exists(jobpath):
             shutil.rmtree(jobpath)
         os.makedirs(jobpath)
+        # Check if the executable needed is in the current instance of Slicer
         if hasattr(slicer.modules, job["executable"].lower()):
             executableNode = getattr(slicer.modules, job["executable"].lower())
             command = list()
+            # Depending on Slicer version, the executable path is pointing to the library or the executable
             if not os.path.basename(executableNode.path).find('.') == -1:
                 command.append(executableNode.path)
             else:
                 command.append(os.path.join(os.path.dirname(executableNode.path), executableNode.name))
+            # Parse all the parameters to create de CLI command
             for parameter in job["parameters"]:
                 if not parameter["name"] == "" and not parameter["flag"] == "":
                     if parameter["name"] == "true":
@@ -747,12 +780,15 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 elif parameter["flag"] == "":
                     command.append(parameter["name"])
             self.ClusterpostLib.updateJobStatus(job["_id"], "DOWNLOADING")
+            # Downloads the attachments and store them in the previously created folder
             for attachment in job["_attachments"]:
                 self.ClusterpostLib.getAttachment(job["_id"],attachment, os.path.join(jobpath, attachment))
                 if attachment in command:
                     i = command.index(attachment)
                     command[i] = os.path.join(jobpath, attachment)
+            # This value is set as true if there is at least one output with type folder
             directory = False
+            # Formating the ouput content (file/directory)
             for output in job["outputs"]:
                 if output['type'] == 'directory':
                     if os.path.basename(output["name"]):
@@ -772,19 +808,23 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     if output["name"] in command:
                         i = command.index(output["name"])
                         command[i] = os.path.join(jobpath, output["name"])
+            # Check the files before computation
             if directory:
                 filesBeforeComputation = os.listdir(jobpath)
-            print command
+            print(command)
             self.ClusterpostLib.updateJobStatus(job["_id"], "RUN")
             try:
+                # Subprocess is a way to run a cli from python
                 p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
                 out, err = p.communicate()
                 self.displayConsole.append(out)
                 self.displayConsole.append(err)
+                # Check files differences before and after computation for output with type directory
                 if directory:
                     filesAfterComputation = os.listdir(jobpath)
                     filesDifference = list(set(filesAfterComputation) - set(filesBeforeComputation))
                 self.ClusterpostLib.updateJobStatus(job["_id"], "UPLOADING")
+                # Upload stdout and stderr
                 with open(os.path.join(jobpath, 'stdout.out'), 'w') as f:
                     f.write(out)
                 with open(os.path.join(jobpath, 'stderr.err'), 'w') as f:
@@ -797,6 +837,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                         self.ClusterpostLib.addAttachment(job["_id"],
                                                           os.path.join(jobpath, output["name"]))
                         outputSize.append(os.stat(os.path.join(jobpath, output["name"])).st_size)
+                # Add all the new files in a zip file
                 if directory:
                     with zipfile.ZipFile(os.path.join(jobpath, folderName + '.zip'), 'w') as myzip:
                         for file in filesDifference:
@@ -804,6 +845,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     self.ClusterpostLib.addAttachment(job["_id"],
                                                       os.path.join(jobpath, folderName + '.zip'))
                     outputSize.append(os.stat(os.path.join(jobpath, folderName + '.zip')).st_size)
+                # Check if the output file is not empty
                 if 0 in outputSize:
                     self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
                 else:
@@ -815,8 +857,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
 
     # ---------- Radio Buttons ---------- #
-    # Function used to display interface corresponding to the query checked
     def onRadioButtontoggled(self):
+        """
+            Function used to display interface corresponding to the query checked
+        """
         self.downloadErrorText.hide()
         self.fillSelectorWithAttachments()
         if self.downloadRadioButtonPatientOnly.isChecked():
@@ -828,8 +872,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.downloadDateLabel.show()
             self.downloadDate.show()
 
-    # Function used to display interface corresponding to the management action checked
     def onManagementRadioButtontoggled(self):
+        """
+            Function used to display interface corresponding to the management action checked
+        """
         if self.managementRadioButtonPatient.isChecked():
             self.managementPatientSelector.hide()
             self.managementPatientSelectorLabel.hide()
@@ -848,20 +894,27 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.isPossibleAddDate()
 
     # ------------- Inputs -------------- #
-    # Function used to enable the connection button if userlogin and password are provided
     def onInputChanged(self):
+        """
+            Function used to enable the connection button if userlogin and password are provided
+        """
         self.connectionButton.enabled = (len(self.emailInput.text) != 0 and len(self.passwordInput.text) != 0)
 
-    # Function used to enable the creation button if path contains a descriptor and is a name is given
     def isPossibleCreatePatient(self):
+        """
+            Function used to enable the creation button if path contains a descriptor and is a name is given
+        """
         directoryPath = self.managementFilepathSelector.directory
         self.createButton.enabled = False
+        # Check if the folder is a collection with a DBIDescriptor file
         if self.newPatientIdInput.text != '' and os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
             self.createButton.enabled = True
 
     # ----------- Combo Boxes ----------- #
-    # Function used to fill the comboBoxes with morphologicalCollections
     def fillSelectorWithCollections(self):
+        """
+            Function used to fill the comboBoxes with morphologicalCollections
+        """
         self.collections = self.DatabaseInteractorLib.getMorphologicalDataCollections().json()
         self.downloadCollectionSelector.clear()
         for items in self.collections:
@@ -869,8 +922,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         if self.downloadCollectionSelector.count == 0:
             self.downloadCollectionSelector.addItem("None")
 
-    # Function used to fill the comboBox with patientId corresponding to the collection selected
     def fillSelectorWithPatients(self):
+        """
+            Function used to fill the comboBox with patientId corresponding to the collection selected
+        """
         for items in self.morphologicalData:
             if "date" in items:
                 date = items["date"]
@@ -878,7 +933,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                                                     self.normalDateFormat)
             else:
                 date = "NoDate"
-
 
         text = self.downloadCollectionSelector.currentText
         self.downloadButton.enabled = text
@@ -897,8 +951,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.downloadPatientSelector.model().sort(0)
         self.downloadPatientSelector.setCurrentIndex(0)
 
-    # Function used to fille the comboBox with a list of attachment corresponding to the query results
     def fillSelectorWithDescriptorPatients(self):
+        """
+            Function used to fill the comboBox with a list of attachment corresponding to the query results
+        """
         directoryPath = self.managementFilepathSelector.directory
         self.managementPatientSelector.clear()
         if os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
@@ -912,6 +968,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.managementPatientSelector.setCurrentIndex(0)
 
     def fillExecutableSelector(self):
+        """
+            Function used to fill the comboBox with a list of executable in the current Slicer
+        """
         self.modules = {}
         modules = slicer.modules.__dict__.keys()
         for moduleName in modules:
@@ -919,16 +978,20 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             if hasattr(module, "cliModuleLogic"):
                 self.executableSelector.addItem(module.name)
 
-    # Function used to enable creation button if path contains a descriptor and is a patient is chosen
     def isPossibleAddDate(self):
+        """
+            Function used to enable creation button if path contains a descriptor and is a patient is chosen 
+        """
         directoryPath = self.managementFilepathSelector.directory
         self.createButton.enabled = False
         if self.managementPatientSelector.currentText != 'None' and os.path.exists(
                 os.path.join(directoryPath, '.DBIDescriptor')):
             self.createButton.enabled = True
 
-    # Function used to enable the download button when everything is ok
     def onDownloadPatientChosen(self):
+        """
+            Function used to enable the download button when everything is ok
+        """
         collectionName = self.downloadCollectionSelector.currentText
         patientId = self.downloadPatientSelector.currentText
         if collectionName != "None" and patientId != "None":
@@ -936,8 +999,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.fillSelectorWithAttachments()
         self.highlightDates()
 
-    # Function used to show in a list the new documents for a patient
     def onUploadPatientChosen(self):
+        """
+            Function used to show in a list the new documents for a patient
+        """
         self.uploadDateSelector.clear()
         self.uploadLabel.hide()
         if self.uploadPatientSelector.currentText != "" and self.uploadPatientSelector.currentText != "None":
@@ -946,8 +1011,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         if self.uploadDateSelector.count == 0:
             self.uploadDateSelector.addItem("None")
 
-    # Function used to display the checkboxes corresponding on the patient and timepoint selected
     def onUploadDateChosen(self):
+        """
+            Function used to display the checkboxes corresponding on the patient and timepoint selected
+        """
         self.clearCheckBoxList()
         # Display new attachments in the layout
         if self.uploadDateSelector.currentText != "" and self.uploadDateSelector.currentText != "None":
@@ -963,8 +1030,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.uploadListLayout.addWidget(self.noneLabel)
             self.noneLabel.setText("None")
 
-
     def executableSelected(self):
+        """
+            Function used to display the widget corresponding to the CLI selected
+        """
         if hasattr(slicer.modules, self.executableSelector.currentText.lower()):
             self.modulesLoaded[str(self.executableSelector.currentText.lower())] = getattr(slicer.modules, self.executableSelector.currentText.lower()).widgetRepresentation().apply
             self.widgetSelectedGroupBox.show()
@@ -984,6 +1053,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             applyButton.connect('clicked(bool)', self.createJobFromModule)
 
     def createJobFromModule(self):
+        """
+            Function used to create and submit a job based on the CLI interface 
+        """
         cli = {}
         attachments = []
         if self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode():
@@ -1055,12 +1127,11 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.ClusterpostLib.setServerUrl(self.DatabaseInteractorLib.server[:-1])
         self.ClusterpostLib.createAndSubmitJob(cli, attachments)
 
-
-
-
     # ----------- Calendars ----------- #
-    # Function used to fill a comboBox with attachments retrieved by queries
     def fillSelectorWithAttachments(self):
+        """
+            Function used to fill a comboBox with attachments retrieved by queries
+        """
         self.downloadAttachmentSelector.clear()
         self.downloadErrorText.hide()
         self.downloadButton.enabled = True
@@ -1087,8 +1158,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.downloadButton.enabled = False
 
     # ------ Filepath selectors ------- #
-    # Function used to create a dictionary corresponding to the collection architecture
     def createFilesDictionary(self):
+        """
+            Function used to create a dictionary corresponding to the collection architecture
+        """
         directoryPath = self.uploadFilepathSelector.directory
         # Check if the directory selected is a valid collection
         if not os.path.exists(os.path.join(directoryPath, '.DBIDescriptor')):
@@ -1125,8 +1198,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             self.uploadButton.enabled = False
             self.uploadPatientSelector.addItem("None")
 
-    # Function used to chose what signal to connect depending on management action checked
     def onManagementDirectorySelected(self):
+        """
+            Function used to chose what signal to connect depending on management action checked
+        """
         if self.managementRadioButtonPatient.isChecked():
             self.isPossibleCreatePatient()
         else:
@@ -1136,10 +1211,59 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
     # ---------------------------------------------------- #
     # ------------------ Other functions ----------------- #
     # ---------------------------------------------------- #
-    # Function used to check the downloaded file extension in order to load it with the correct loader
+    def clearCheckBoxList(self):
+        """
+            Function used to clear the layout which displays the checkboxes for upload
+        """
+        for patient in self.attachmentsList.keys():
+            for date in self.attachmentsList[patient].keys():
+                for items in self.attachmentsList[patient][date]["checkbox"].keys():
+                    self.uploadListLayout.removeWidget(self.attachmentsList[patient][date]["checkbox"][items])
+                    self.attachmentsList[patient][date]["checkbox"][items].delete()
+                self.attachmentsList[patient][date]["checkbox"] = {}
+
+        self.noneLabel.setText("")
+        self.uploadListLayout.removeWidget(self.noneLabel)
+
+    def checkBoxesChecked(self):
+        """
+            Function used to get in a dictionnary attachments selected to be uploaded
+        """
+        self.checkedList = {}
+        for patient in self.attachmentsList.keys():
+            self.checkedList[patient] = {}
+            for date in self.attachmentsList[patient].keys():
+                self.checkedList[patient][date] = {}
+                self.checkedList[patient][date]["items"] = []
+                for items in self.attachmentsList[patient][date]["checkbox"].keys():
+                    if str(self.attachmentsList[patient][date]["checkbox"][items].checkState()) == "2" :
+                        self.checkedList[patient][date]["items"].append(items)
+
+    def highlightDates(self):
+        """
+            Function used to color the dates which contain one or multiple attachments for a given patientId
+        """
+        for items in self.morphologicalData:
+            if "date" in items:
+                date = items["date"]
+                if items["patientId"] == self.downloadPatientSelector.currentText:
+                    date = items["date"]
+                    self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]),int(date[5:7]),int(date[8:10])),
+                                                        self.checkableDateFormat)
+                else:
+                    self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
+                                                        self.normalDateFormat)
+
+#
+# DatabaseInteractorLogic
+#
+
+class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModuleLogic):
     def fileLoader(self, filepath):
-        # Documentation :
-        # http://wiki.slicer.org/slicerWiki/index.php/Documentation/4.5/SlicerApplication/SupportedDataFormat
+        """
+            Function used to load a file in the node corresponding to the file extension
+            Documentation : http://wiki.slicer.org/slicerWiki/index.php/Documentation/4.5/SlicerApplication/SupportedDataFormat
+        """
         sceneExtensions = ["mrml","mrb","xml","xcat"]
         volumeExtensions = ["dcm","nrrd","nhdr","mhd","mha","vtk","hdr","img","nia","nii","bmp","pic","mask","gipl","jpg","jpeg","lsm","png","spr","tif","tiff","mgz","mrc","rec"]
         modelExtensions = ["vtk","vtp","stl","obj","orig","inflated","sphere","white","smoothwm","pial","g","byu"]
@@ -1172,6 +1296,9 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             slicer.util.loadColorTable(filepath)
 
     def nodeWriter(self, node, dirpath):
+        """
+            Function used to write the content of a node in a file given the node and the path
+        """
         fileName = node.GetName()
         if "LabelMap" in node.GetClassName() or "ScalarVolume" in node.GetClassName():
             extension = '.gipl.gz'
@@ -1189,71 +1316,20 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             slicer.util.saveScene(os.path.join(dirpath, fileName + extension))
         return os.path.join(dirpath,fileName + extension)
 
-    # Function used to clear the layout which displays the checkboxes for upload
-    def clearCheckBoxList(self):
-        for patient in self.attachmentsList.keys():
-            for date in self.attachmentsList[patient].keys():
-                for items in self.attachmentsList[patient][date]["checkbox"].keys():
-                    self.uploadListLayout.removeWidget(self.attachmentsList[patient][date]["checkbox"][items])
-                    self.attachmentsList[patient][date]["checkbox"][items].delete()
-                self.attachmentsList[patient][date]["checkbox"] = {}
-
-        self.noneLabel.setText("")
-        self.uploadListLayout.removeWidget(self.noneLabel)
-
-    # Function used to get in a dictionnary attachments selected to be uploaded
-    def checkBoxesChecked(self):
-        self.checkedList = {}
-        for patient in self.attachmentsList.keys():
-            self.checkedList[patient] = {}
-            for date in self.attachmentsList[patient].keys():
-                self.checkedList[patient][date] = {}
-                self.checkedList[patient][date]["items"] = []
-                for items in self.attachmentsList[patient][date]["checkbox"].keys():
-                    if str(self.attachmentsList[patient][date]["checkbox"][items].checkState()) == "2" :
-                        self.checkedList[patient][date]["items"].append(items)
-
-    # Function used to color the dates which contain one or multiple attachments for a given patientId
-    def highlightDates(self):
-        for items in self.morphologicalData:
-            if "date" in items:
-                date = items["date"]
-                if items["patientId"] == self.downloadPatientSelector.currentText:
-                    date = items["date"]
-                    self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]),int(date[5:7]),int(date[8:10])),
-                                                        self.checkableDateFormat)
-                else:
-                    self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
-                                                        self.normalDateFormat)
-
-#
-# DatabaseInteractorLogic
-#
-
-class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModuleLogic):
-    """This class should implement all the actual
-  computation done by your module.  The interface
-  should be such that other python code can import
-  this class and make use of the functionality without
-  requiring an instance of the Widget.
-  Uses ScriptedLoadableModuleLogic base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
-
-    def run(self, email, password):
-        return self.DatabaseInteractorLib.connect(email, password)
-
-
 class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModuleTest):
-    # Reset the scene
     def setUp(self):
+        """
+            Function used to reset the scene for the tests
+        """
         self.widget = slicer.modules.DatabaseInteractorWidget
         self.DatabaseInteractorLib = self.widget.DatabaseInteractorLib
         slicer.mrmlScene.Clear(0)
         self.DatabaseInteractorLib.disconnect()
 
-    # Run the tests
     def runTest(self):
+        """
+            Function used to run some tests about the extension behaviour
+        """
         self.setUp()
 
         self.delayDisplay(' Starting tests ')
@@ -1281,9 +1357,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
 
 
     def test_Login(self):
-        # ---------------------------------------------------------------- #
-        # ------------------------ Login to server ----------------------- #
-        # ---------------------------------------------------------------- #
+        """ ---------------------------------------------------------------- 
+            ---------------------- Login to the server --------------------- 
+            ---------------------------------------------------------------- """
         server = 'http://localhost:8180/'
         user = 'clement.mirabel@gmail.com'
         password = 'Password1234'
@@ -1297,9 +1373,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return True
 
     def test_createCollection(self):
-        # ---------------------------------------------------------------- #
-        # ------------------- Creating a test collection ----------------- #
-        # ---------------------------------------------------------------- #
+        """ ---------------------------------------------------------------- 
+            ------------------ Creating a test collection ------------------ 
+            ---------------------------------------------------------------- """
         data = {"items": "[]",
                 "type": "morphologicalDataCollection",
                 "name": "CollectionTest"}
@@ -1311,9 +1387,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return True
 
     def test_getCollection(self):
-        # ---------------------------------------------------------------- #
-        # ------------------ Getting the test collection ----------------- #
-        # ---------------------------------------------------------------- #
+        """ ----------------------------------------------------------------
+            ------------------ Getting the test collection ----------------- 
+            ---------------------------------------------------------------- """
         rep = self.DatabaseInteractorLib.getMorphologicalDataCollections()
         for items in rep.json():
             if items["name"]=="CollectionTest":
@@ -1324,9 +1400,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return False
 
     def test_createPatient(self):
-        # ---------------------------------------------------------------- #
-        # ---------------------- Creating a patient ---------------------- #
-        # ---------------------------------------------------------------- #
+        """ ----------------------------------------------------------------
+            ---------------------- Creating a patient ---------------------- 
+            ---------------------------------------------------------------- """
         data = {"type": "morphologicalData", "patientId": "PatientTest"}
         rep = self.DatabaseInteractorLib.createMorphologicalData(data)
         if rep == -1:
@@ -1345,9 +1421,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
 
 
     def test_uploadAttachment(self):
-        # ---------------------------------------------------------------- #
-        # -------------------- Uploading an attachment ------------------- #
-        # ---------------------------------------------------------------- #
+        """ ---------------------------------------------------------------- 
+            -------------------- Uploading an attachment ------------------- 
+            ---------------------------------------------------------------- """
         self.moduleName = 'DatabaseInteractor'
         filePath = slicer.app.temporaryPath + '/FA.nrrd'
         file = open(filePath,'rb')
@@ -1360,9 +1436,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return True
 
     def test_getAttachment(self):
-        # ---------------------------------------------------------------- #
-        # --------------------- Getting an attachment -------------------- #
-        # ---------------------------------------------------------------- #
+        """ ---------------------------------------------------------------- 
+            -------------------- Getting an attachment ------------------- 
+            ---------------------------------------------------------------- """
         rep = self.DatabaseInteractorLib.getAttachment(self.patientId,'attachmentTest.nrrd', 'blob')
         if rep == -1:
             print("Getting attachment Failed!")
@@ -1376,9 +1452,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return True
 
     def test_deletePatient(self):
-        # ---------------------------------------------------------------- #
-        # --------------------- Delete the test patient ------------------ #
-        # ---------------------------------------------------------------- #
+        """ ---------------------------------------------------------------- 
+            -------------------- Delete the test patient ------------------- 
+            ---------------------------------------------------------------- """
         rep = self.DatabaseInteractorLib.deleteMorphologicalData(self.patientId)
         if rep == -1:
             print("Patient deletion Failed!")
@@ -1387,9 +1463,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return True
 
     def test_deleteCollection(self):
-        # ---------------------------------------------------------------- #
-        # ------------------- Delete the test collection ----------------- #
-        # ---------------------------------------------------------------- #
+        """ ---------------------------------------------------------------- 
+            ------------------ Delete the test collection ------------------ 
+            ---------------------------------------------------------------- """
         rep = self.DatabaseInteractorLib.deleteMorphologicalDataCollection(self.collectionTestId)
         if rep == -1:
             print("Collection deletion Failed!")
@@ -1398,6 +1474,9 @@ class DatabaseInteractorTest(slicer.ScriptedLoadableModule.ScriptedLoadableModul
         return True
 
     def test_importData(self):
+        """ ---------------------------------------------------------------- 
+            ------------------- Download some data online ------------------ 
+            ---------------------------------------------------------------- """
         import urllib
         downloads = (
             ('http://slicer.kitware.com/midas3/download?items=5767', 'FA.nrrd'),
