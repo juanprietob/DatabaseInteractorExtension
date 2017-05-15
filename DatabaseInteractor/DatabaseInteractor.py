@@ -644,7 +644,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         """
             Function used to upload a data to the correct patient
         """
-
         self.checkBoxesChecked()
         for patient in self.checkedList.keys():
             for date in self.checkedList[patient].keys():
@@ -738,123 +737,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.timer.stop()
         self.connectListenerButton.enabled = True
         self.disconnectListenerButton.enabled = False
-
-    def overflow(self):
-        """
-            Function triggered by the overflow of the timer  
-        """
-        self.timer.stop()
-        print(">>>>>>>>>>>>>>>>")
-        # Retrieve the jobs to be computed in the database
-        jobs = self.ClusterpostLib.getJobs(jobstatus='QUEUE')
-        if jobs:
-            self.runJob(jobs[0])
-        self.timer.start(self.timerPeriod)
-
-    def runJob(self, job):
-        """
-            Function used to run a job and send it back to the server 
-        """
-        # Creates a folder to store IO for the job. Folder is in Slicer temporary path and named with job id
-        jobpath = os.path.join(slicer.app.temporaryPath, job["_id"])
-        if os.path.exists(jobpath):
-            shutil.rmtree(jobpath)
-        os.makedirs(jobpath)
-        # Check if the executable needed is in the current instance of Slicer
-        if hasattr(slicer.modules, job["executable"].lower()):
-            executableNode = getattr(slicer.modules, job["executable"].lower())
-            command = list()
-            # Depending on Slicer version, the executable path is pointing to the library or the executable
-            if not os.path.basename(executableNode.path).find('.') == -1:
-                command.append(executableNode.path)
-            else:
-                command.append(os.path.join(os.path.dirname(executableNode.path), executableNode.name))
-            # Parse all the parameters to create de CLI command
-            for parameter in job["parameters"]:
-                if not parameter["name"] == "" and not parameter["flag"] == "":
-                    if parameter["name"] == "true":
-                        command.append(parameter["flag"])
-                    elif not parameter["name"] == "false":
-                        command.append(parameter["flag"])
-                        command.append(parameter["name"])
-                elif parameter["flag"] == "":
-                    command.append(parameter["name"])
-            self.ClusterpostLib.updateJobStatus(job["_id"], "DOWNLOADING")
-            # Downloads the attachments and store them in the previously created folder
-            for attachment in job["_attachments"]:
-                self.ClusterpostLib.getAttachment(job["_id"],attachment, os.path.join(jobpath, attachment))
-                if attachment in command:
-                    i = command.index(attachment)
-                    command[i] = os.path.join(jobpath, attachment)
-            # This value is set as true if there is at least one output with type folder
-            directory = False
-            # Formating the ouput content (file/directory)
-            for output in job["outputs"]:
-                if output['type'] == 'directory':
-                    if os.path.basename(output["name"]):
-                        if output["name"] in command:
-                            i = command.index(output["name"])
-                            command[i] = os.path.join(jobpath, os.path.basename(output["name"]))
-                        folderName = os.path.basename(output["name"])
-                    else:
-                        if output["name"] in command:
-                            i = command.index(output["name"])
-                            command[i] = os.path.join(jobpath)
-                        folderName = os.path.basename(os.path.dirname(output["name"]))
-                    directory = True
-                else:
-                    file = open(os.path.join(jobpath, output["name"]),'w+')
-                    file.close()
-                    if output["name"] in command:
-                        i = command.index(output["name"])
-                        command[i] = os.path.join(jobpath, output["name"])
-            # Check the files before computation
-            if directory:
-                filesBeforeComputation = os.listdir(jobpath)
-            print(command)
-            self.ClusterpostLib.updateJobStatus(job["_id"], "RUN")
-            try:
-                # Subprocess is a way to run a cli from python
-                p = subprocess.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-                out, err = p.communicate()
-                self.displayConsole.append(out)
-                self.displayConsole.append(err)
-                # Check files differences before and after computation for output with type directory
-                if directory:
-                    filesAfterComputation = os.listdir(jobpath)
-                    filesDifference = list(set(filesAfterComputation) - set(filesBeforeComputation))
-                self.ClusterpostLib.updateJobStatus(job["_id"], "UPLOADING")
-                # Upload stdout and stderr
-                with open(os.path.join(jobpath, 'stdout.out'), 'w') as f:
-                    f.write(out)
-                with open(os.path.join(jobpath, 'stderr.err'), 'w') as f:
-                    f.write(err)
-                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stdout.out'))
-                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stderr.err'))
-                outputSize = []
-                for output in job["outputs"]:
-                    if output['type'] == 'file':
-                        self.ClusterpostLib.addAttachment(job["_id"],
-                                                          os.path.join(jobpath, output["name"]))
-                        outputSize.append(os.stat(os.path.join(jobpath, output["name"])).st_size)
-                # Add all the new files in a zip file
-                if directory:
-                    with zipfile.ZipFile(os.path.join(jobpath, folderName + '.zip'), 'w') as myzip:
-                        for file in filesDifference:
-                            myzip.write(os.path.join(jobpath, file),file)
-                    self.ClusterpostLib.addAttachment(job["_id"],
-                                                      os.path.join(jobpath, folderName + '.zip'))
-                    outputSize.append(os.stat(os.path.join(jobpath, folderName + '.zip')).st_size)
-                # Check if the output file is not empty
-                if 0 in outputSize:
-                    self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
-                else:
-                    self.ClusterpostLib.updateJobStatus(job["_id"], "DONE")
-            except Exception as e:
-                with open(os.path.join(jobpath, 'stderr.err'), 'w') as f:
-                    f.write(str(e))
-                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stderr.err'))
-                self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
 
     # ---------- Radio Buttons ---------- #
     def onRadioButtontoggled(self):
@@ -1092,7 +974,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                         # Write file in a temporary
                         IOnode = slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex)))
                         if IOnode:
-                            path = self.nodeWriter(IOnode, slicer.app.temporaryPath)
+                            path = self.logic.nodeWriter(IOnode, slicer.app.temporaryPath)
                         value = os.path.basename(path)
 
                     if tag == "file":
@@ -1227,7 +1109,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
     def checkBoxesChecked(self):
         """
-            Function used to get in a dictionnary attachments selected to be uploaded
+            Function used to store in a dictionary the attachments selected to be uploaded
         """
         self.checkedList = {}
         for patient in self.attachmentsList.keys():
@@ -1253,6 +1135,124 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 else:
                     self.downloadDate.setDateTextFormat(qt.QDate(int(date[:4]), int(date[5:7]), int(date[8:10])),
                                                         self.normalDateFormat)
+
+    def overflow(self):
+        """
+            Function triggered by the overflow of the timer  
+        """
+        self.timer.stop()
+        print(">>>>>>>>>>>>>>>>")
+        # Retrieve the jobs to be computed in the database
+        jobs = self.ClusterpostLib.getJobs(jobstatus='QUEUE')
+        if jobs:
+            self.runJob(jobs[0])
+        self.timer.start(self.timerPeriod)
+
+    def runJob(self, job):
+        """
+            Function used to run a job and send it back to the server 
+        """
+        # Creates a folder to store IO for the job. Folder is in Slicer temporary path and named with job id
+        jobpath = os.path.join(slicer.app.temporaryPath, job["_id"])
+        if os.path.exists(jobpath):
+            shutil.rmtree(jobpath)
+        os.makedirs(jobpath)
+        # Check if the executable needed is in the current instance of Slicer
+        if hasattr(slicer.modules, job["executable"].lower()):
+            executableNode = getattr(slicer.modules, job["executable"].lower())
+            command = list()
+            # Depending on Slicer version, the executable path is pointing to the library or the executable
+            if not os.path.basename(executableNode.path).find('.') == -1:
+                command.append(executableNode.path)
+            else:
+                command.append(os.path.join(os.path.dirname(executableNode.path), executableNode.name))
+            # Parse all the parameters to create de CLI command
+            for parameter in job["parameters"]:
+                if not parameter["name"] == "" and not parameter["flag"] == "":
+                    if parameter["name"] == "true":
+                        command.append(parameter["flag"])
+                    elif not parameter["name"] == "false":
+                        command.append(parameter["flag"])
+                        command.append(parameter["name"])
+                elif parameter["flag"] == "":
+                    command.append(parameter["name"])
+            self.ClusterpostLib.updateJobStatus(job["_id"], "DOWNLOADING")
+            # Downloads the attachments and store them in the previously created folder
+            for attachment in job["_attachments"]:
+                self.ClusterpostLib.getAttachment(job["_id"], attachment, os.path.join(jobpath, attachment))
+                if attachment in command:
+                    i = command.index(attachment)
+                    command[i] = os.path.join(jobpath, attachment)
+            # This value is set as true if there is at least one output with type folder
+            directory = False
+            # Formating the ouput content (file/directory)
+            for output in job["outputs"]:
+                if output['type'] == 'directory':
+                    if os.path.basename(output["name"]):
+                        if output["name"] in command:
+                            i = command.index(output["name"])
+                            command[i] = os.path.join(jobpath, os.path.basename(output["name"]))
+                        folderName = os.path.basename(output["name"])
+                    else:
+                        if output["name"] in command:
+                            i = command.index(output["name"])
+                            command[i] = os.path.join(jobpath)
+                        folderName = os.path.basename(os.path.dirname(output["name"]))
+                    directory = True
+                else:
+                    file = open(os.path.join(jobpath, output["name"]), 'w+')
+                    file.close()
+                    if output["name"] in command:
+                        i = command.index(output["name"])
+                        command[i] = os.path.join(jobpath, output["name"])
+            # Check the files before computation
+            filesBeforeComputation = os.listdir(jobpath)
+            print(command)
+            self.ClusterpostLib.updateJobStatus(job["_id"], "RUN")
+            try:
+                # Subprocess is a way to run a cli from python
+                p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                out, err = p.communicate()
+                self.displayConsole.append(out)
+                self.displayConsole.append(err)
+                # Check files differences before and after computation for output with type directory
+                filesAfterComputation = os.listdir(jobpath)
+                filesDifference = list(set(filesAfterComputation) - set(filesBeforeComputation))
+                self.ClusterpostLib.updateJobStatus(job["_id"], "UPLOADING")
+                # Upload stdout and stderr
+                with open(os.path.join(jobpath, 'stdout.out'), 'w') as f:
+                    f.write(out)
+                with open(os.path.join(jobpath, 'stderr.err'), 'w') as f:
+                    f.write(err)
+                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stdout.out'))
+                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stderr.err'))
+                outputSize = []
+                for output in job["outputs"]:
+                    if output['type'] == 'file':
+                        self.ClusterpostLib.addAttachment(job["_id"],
+                                                          os.path.join(jobpath, output["name"]))
+                        outputSize.append(os.stat(os.path.join(jobpath, output["name"])).st_size)
+                # Add all the new files in a zip file
+                if not directory:
+                    folderName = "computationFiles"
+                print filesDifference
+                if len(filesDifference) > 0:
+                    with zipfile.ZipFile(os.path.join(jobpath, folderName + '.zip'), 'w') as myzip:
+                        for file in filesDifference:
+                            myzip.write(os.path.join(jobpath, file), file)
+                    self.ClusterpostLib.addAttachment(job["_id"],
+                                                      os.path.join(jobpath, folderName + '.zip'))
+                    outputSize.append(os.stat(os.path.join(jobpath, folderName + '.zip')).st_size)
+                # Check if the output file is not empty
+                if 0 in outputSize:
+                    self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
+                else:
+                    self.ClusterpostLib.updateJobStatus(job["_id"], "DONE")
+            except Exception as e:
+                with open(os.path.join(jobpath, 'stderr.err'), 'w') as f:
+                    f.write(str(e))
+                self.ClusterpostLib.addAttachment(job["_id"], os.path.join(jobpath, 'stderr.err'))
+                self.ClusterpostLib.updateJobStatus(job["_id"], "FAIL")
 
 #
 # DatabaseInteractorLogic
@@ -1300,14 +1300,34 @@ class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModu
             Function used to write the content of a node in a file given the node and the path
         """
         fileName = node.GetName()
+
+        # Window UI to choose file extension
+        extensionBox = qt.QDialog()
+        extensionBox.setWindowTitle("Select file extension")
+
+        extensionBoxLayout = qt.QFormLayout()
+        extensionComboBox = qt.QComboBox()
+        extensionPushButton = qt.QPushButton("Ok")
+        extensionBoxLayout.addRow(fileName, extensionComboBox)
+        buttonBox = qt.QDialogButtonBox(qt.QDialogButtonBox.Ok)
+        extensionBoxLayout.addWidget(buttonBox)
+        extensionBox.setLayout(extensionBoxLayout)
+
+        buttonBox.accepted.connect(extensionBox.accept)
+        buttonBox.rejected.connect(extensionBox.reject)
+
         if "LabelMap" in node.GetClassName() or "ScalarVolume" in node.GetClassName():
-            extension = '.gipl.gz'
+            extensionComboBox.addItems([".nrrd",".nii",".gipl.gz"])
+            extensionBox.exec_()
+            extension = extensionComboBox.currentText
         if "ColorTable" in node.GetClassName():
             extension = '.txt'
         if "ModelHierarchy" in node.GetClassName():
             extension = '.mrml'
         if "ModelNode" in node.GetClassName():
-            extension = '.vtk'
+            extensionComboBox.addItems([".vtk", ".stl", ".obj"])
+            extensionBox.exec_()
+            extension = extensionComboBox.currentText
         if "Transform" in node.GetClassName():
             extension = ".mat"
 
