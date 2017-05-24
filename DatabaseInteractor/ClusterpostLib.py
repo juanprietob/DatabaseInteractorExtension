@@ -21,6 +21,7 @@ class ClusterpostLib():
     def setVerifyHttps(self, verify):
         self.verify = verify
 
+
     def getUser(self):
         if(self.user == None):
 
