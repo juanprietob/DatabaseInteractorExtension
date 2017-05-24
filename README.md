@@ -12,6 +12,8 @@ Main functionalities are:
 - Download one or multiple attachments from online database
 - Upload data stored in a local folder to the database
 - Manage database architecture
+- Create a job based on a Slicer CLI to be run remotely
+- Use your Slicer instance as a remote computer
 
 ## Technologies used
 This extensions uses **requests** library for python (*http://docs.python-requests.org/en/master/*) that ease doing http requests.
