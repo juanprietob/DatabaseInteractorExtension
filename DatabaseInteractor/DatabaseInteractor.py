@@ -485,6 +485,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         """ 
             Function used to reset the CLI widget when exiting the module 
         """
+        print("-----------EXIT------------")
         for moduleName, slot in self.modulesLoaded.iteritems():
             node = getattr(slicer.modules, moduleName)
             applyButton = node.widgetRepresentation().ApplyPushButton
@@ -942,6 +943,11 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         attachments = []
         if self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode():
             node = self.currentExecutable.widgetRepresentation().currentCommandLineModuleNode()
+            executionServer = ""
+            if slicer.app.applicationName == "Slicer":
+                executionServer = "Slicer" + slicer.app.applicationVersion[:5]
+            else:
+                executionServer = slicer.app.applicationName
             cli = {
                 "executable": self.executableSelector.currentText,
                 "parameters": [],
@@ -949,7 +955,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                 "outputs": [],
                 "type": "job",
                 "userEmail": self.DatabaseInteractorLib.getUserEmail(),
-                "executionserver": "default"
+                "executionserver": executionServer
             }
             for groupIndex in xrange(0, node.GetNumberOfParameterGroups()):
                 for parameterIndex in xrange(0, node.GetNumberOfParametersInGroup(groupIndex)):
@@ -970,7 +976,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     path = ''
                     tag = node.GetParameterTag(groupIndex, parameterIndex)
 
-                    if tag == "image" or tag == "table" or tag == "geometry" or tag == "transform":
+                    if tag == "image" or tag == "geometry" or tag == "transform":
                         # Write file in a temporary
                         IOnode = slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex)))
                         if IOnode:
@@ -979,6 +985,17 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
 
                     if tag == "file":
                         path = node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex))
+                        value = os.path.basename(path)
+
+                    if tag == "table" and node.GetParameterType(groupIndex, parameterIndex) == "color":
+                        i = 1
+                        while parameterIndex - i >= 0 :
+                            if node.GetParameterType(groupIndex, parameterIndex-i) == 'label':
+                                labelNode = slicer.util.getNode(node.GetParameterAsString(node.GetParameterName(groupIndex, parameterIndex-i)))
+                                path = self.logic.nodeWriter(labelNode.GetDisplayNode().GetColorNode(), slicer.app.temporaryPath)
+                                value = os.path.basename(path)
+                                i = 100
+                            i += 1
 
                     channel = node.GetParameterChannel(groupIndex, parameterIndex)
                     if channel and path:
@@ -1162,7 +1179,7 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
             executableNode = getattr(slicer.modules, job["executable"].lower())
             command = list()
             # Depending on Slicer version, the executable path is pointing to the library or the executable
-            if not os.path.basename(executableNode.path).find('.') == -1:
+            if os.path.basename(executableNode.path).find('.') == -1:
                 command.append(executableNode.path)
             else:
                 command.append(os.path.join(os.path.dirname(executableNode.path), executableNode.name))
@@ -1307,7 +1324,6 @@ class DatabaseInteractorLogic(slicer.ScriptedLoadableModule.ScriptedLoadableModu
 
         extensionBoxLayout = qt.QFormLayout()
         extensionComboBox = qt.QComboBox()
-        extensionPushButton = qt.QPushButton("Ok")
         extensionBoxLayout.addRow(fileName, extensionComboBox)
         buttonBox = qt.QDialogButtonBox(qt.QDialogButtonBox.Ok)
         extensionBoxLayout.addWidget(buttonBox)
