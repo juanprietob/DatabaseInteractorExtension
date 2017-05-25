@@ -413,21 +413,6 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         self.layout.addStretch(1)
 
         # --------------------------------------------------------- #
-        # ----------------------- Submit training------------------ #
-        # --------------------------------------------------------- #
-
-        # Collapsible button
-        self.trainModelCollapsibleButton = ctk.ctkCollapsibleButton()
-        self.trainModelCollapsibleButton.text = "Train model"
-        self.layout.addWidget(self.trainModelCollapsibleButton, 0)
-        self.trainModelFormLayout = qt.QFormLayout(self.trainModelCollapsibleButton)
-
-        self.trainButton = qt.QPushButton("Train")
-        self.trainButton.toolTip = "Train model"
-        self.trainModelFormLayout.addRow(self.trainButton)
-
-
-        # --------------------------------------------------------- #
         # ----------------------- Signals ------------------------- #
         # --------------------------------------------------------- #
 
