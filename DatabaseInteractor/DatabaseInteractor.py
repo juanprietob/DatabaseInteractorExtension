@@ -628,11 +628,10 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
                     file.close()
 
                     # Save the attachment
-                    if data != -1:
-                        filePath = os.path.join(collectionPath, patientId, date[:10], attachments)
-                        with open(filePath, 'wb+') as file:
-                            for chunk in data.iter_content(2048):
-                                file.write(chunk)
+                    filePath = os.path.join(collectionPath, patientId, date[:10], attachments)
+                    with open(filePath, 'wb+') as file:
+                        for chunk in data:
+                            file.write(chunk)
                     file.close()
 
         file = open(os.path.join(collectionPath, '.DBIDescriptor'), 'w+')
@@ -645,22 +644,20 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         """
             Function used to upload a data to the correct patient
         """
+        collection = self.uploadFilepathSelector.directory
         self.checkBoxesChecked()
         for patient in self.checkedList.keys():
             for date in self.checkedList[patient].keys():
                 for attachment in self.checkedList[patient][date]["items"]:
+                    with open(os.path.join(collection, patient, date, '.DBIDescriptor'), 'r') as file:
+                        descriptor = json.load(file)
+                    documentId = descriptor["_id"]
                     # Add new attachments to patient
-                    collection = self.uploadFilepathSelector.directory
                     path = os.path.join(collection,patient,date,attachment)
-                    for items in self.morphologicalData:
-                        if not "date" in items:
-                            items["date"] = "NoDate"
-                        if items["patientId"] == patient and items["date"][:10] == date:
-                            documentId = items["_id"]
-                            data = open(path, 'r')
-                            self.DatabaseInteractorLib.addAttachment(documentId, attachment, data)
+                    with open(path, 'r') as file:
+                        self.DatabaseInteractorLib.addAttachment(documentId, attachment, file)
                     # Update descriptor
-                    data = self.DatabaseInteractorLib.getMorphologicalDataByPatientId(patient).json()
+                    data = self.DatabaseInteractorLib.getMorphologicalDataByPatientId(patient).json()[0]
                     file = open(os.path.join(self.uploadFilepathSelector.directory, patient, date,
                                              '.DBIDescriptor'), 'w+')
                     json.dump(data, file, indent=3, sort_keys=True)
