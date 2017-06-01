@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 2.8.9)
 
 project(DatabaseInteractor)
 
+set(DatabaseInteractor_VERSION_MAJOR 1)
+set(DatabaseInteractor_VERSION_MINOR 1)
+set(DatabaseInteractor_VERSION_PATCH 0)
+
 #-----------------------------------------------------------------------------
 # Extension meta-information
 set(EXTENSION_HOMEPAGE "http://slicer.org/slicerWiki/index.php/Documentation/Nightly/Extensions/DatabaseInteractor")
