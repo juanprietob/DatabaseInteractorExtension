@@ -4,7 +4,7 @@ project(DatabaseInteractor)
 
 set(DatabaseInteractor_VERSION_MAJOR 1)
 set(DatabaseInteractor_VERSION_MINOR 1)
-set(DatabaseInteractor_VERSION_PATCH 0)
+set(DatabaseInteractor_VERSION_PATCH 1)
 
 #-----------------------------------------------------------------------------
 # Extension meta-information

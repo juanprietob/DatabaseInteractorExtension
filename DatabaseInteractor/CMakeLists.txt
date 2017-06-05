@@ -5,6 +5,7 @@ set(MODULE_NAME DatabaseInteractor)
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
   ${MODULE_NAME}Lib.py
+  ClusterpostLib.py
   )
 
 file(GLOB_RECURSE
