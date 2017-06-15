@@ -1159,7 +1159,11 @@ class DatabaseInteractorWidget(slicer.ScriptedLoadableModule.ScriptedLoadableMod
         # Retrieve the jobs to be computed in the database
         jobs = self.ClusterpostLib.getJobs(jobstatus='QUEUE')
         if jobs:
-            self.runJob(jobs[0])
+            for i in range(0,len(jobs)):
+                if hasattr(slicer.modules, jobs[i]["executable"].lower()):
+                    self.runJob(jobs[i])
+                    break
+    
         self.timer.start(self.timerPeriod)
 
     def runJob(self, job):
